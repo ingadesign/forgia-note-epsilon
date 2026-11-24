@@ -91,7 +91,7 @@ pre.preview{font-family:var(--f-mono);font-size:.84rem;background:var(--code-bg)
       <label class="hint" for="bulkType">Tipo</label>
       <select id="bulkType" style="width:auto">
         <option value="auto">Riconosci da solo</option><option value="class">Classe</option><option value="subclass">Sottoclasse</option>
-        <option value="feat">Talento</option><option value="background">Background</option><option value="spell">Incantesimo</option><option value="species">Specie</option>
+        <option value="feat">Talento</option><option value="background">Background</option><option value="spell">Incantesimo</option><option value="species">Specie</option><option value="options">Opzioni di un privilegio</option>
       </select>
       <label class="hint"><input type="checkbox" id="bulkFeatures" checked> crea anche una nota per ogni privilegio</label>
       <label class="hint"><input type="checkbox" id="bulkMeters" checked> piedi → metri</label>
@@ -232,6 +232,20 @@ const TYPES={
     {id:'speed',label:'Velocità',kind:'text',ph:'9 meters'},
     {id:'desc',label:'Introduzione',kind:'textarea',full:true,clean:true,small:true},
     {id:'feats',label:'Tratti',kind:'rep',full:true,nolevel:true}]},
+  options:{label:'Opzioni di privilegio',cat:'classes',fields:[
+    {id:'name',label:'Nome dell’elenco',kind:'text',ph:'es. Metamagic Options'},
+    {id:'cls',label:'Classe',kind:'select',opts:CLASSES},
+    {id:'feature',label:'Privilegio',kind:'text',ph:'es. Metamagic'},
+    {id:'desc',label:'Introduzione',kind:'textarea',full:true,clean:true,small:true},
+    {id:'feats',label:'Opzioni',kind:'rep',full:true,nolevel:true,add:'opzione'}]},
+  option:{label:'Opzione',cat:'classes',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'es. Careful Spell'},
+    {id:'cls',label:'Classe',kind:'select',opts:CLASSES},
+    {id:'feature',label:'Privilegio',kind:'text',ph:'es. Metamagic'},
+    {id:'list',label:'Elenco',kind:'text',ph:'es. Metamagic Options'},
+    {id:'cost',label:'Costo',kind:'text',ph:'es. 1 Sorcery Point'},
+    {id:'pre',label:'Prerequisito',kind:'text',ph:'es. Level 5+ Warlock'},
+    {id:'desc',label:'Descrizione',kind:'textarea',full:true,clean:true}]},
   free:{label:'Nota libera',cat:'misc',fields:[
     {id:'name',label:'Nome',kind:'text',ph:'Titolo della nota'},
     {id:'folder',label:'Cartella nel vault',kind:'text',ph:'Dm Rules/…'},
@@ -258,6 +272,7 @@ const safe=s=>String(s||'').replace(/[\\/:*?"<>|#^[\]]/g,'-').replace(/\s+/g,' '
 const tag=s=>'#'+String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 function fmtM(v){v=Math.round(v*10)/10; return Number.isInteger(v)?String(v):String(v).replace('.',',');}
 function toMeters(t){
+  t=t.replace(/(\d[\d,]*)\+\s*(?:feet|foot|ft\.?)(?=[\s.,;:)\]]|$)/g,(m,n)=>fmtM(parseInt(n.replace(/,/g,''))*0.3)+'+ meters');
   t=t.replace(/(\d[\d,]*)-(?:foot|feet)\b/g,(m,n)=>fmtM(parseInt(n.replace(/,/g,''))*0.3)+'-meter');
   return t.replace(/(\d[\d,]*)\s+(?:feet|foot|ft\.?)(?=[\s.,;:)\]]|$)/g,(m,n)=>fmtM(parseInt(n.replace(/,/g,''))*0.3)+' meters');
 }
@@ -346,6 +361,23 @@ function build(type,d){
     entry.fields={Tipo:d.ctype,Taglia:d.size,'Velocità':d.speed};
     entry.body=[para(d.desc),...tr.map(f=>`${f.name}. ${para(f.text)}`)].filter(Boolean).join('\n\n'); entry.tags=['species'];
   }
+  if(type==='options'){
+    const fname=safe(d.feature)||n.replace(/ Options$/,'');
+    path=`Dm Rules/Classi/${d.cls}/${n}/${n}.md`;
+    const os=d.feats.filter(f=>f.name||f.text);
+    const meta=f=>[f.cost,f.pre?'Prerequisite: '+f.pre:''].filter(Boolean).join(' · ');
+    md=`**Class:** [[${d.cls}]]\n**Feature:** [[${fname}]]\n\n${para(d.desc)}\n\n`+os.map(f=>`- [[${safe(f.name)}]]`+(meta(f)?` — ${meta(f)}`:'')).join('\n')+`\n\n**Tags:** #class-option ${tag(fname)} ${tag(d.cls)}`;
+    entry.subcategory=`${d.cls} — ${n}`; entry.fields={Classe:d.cls,Privilegio:fname};
+    entry.body=[para(d.desc),...os.map(f=>f.name+(meta(f)?' — '+meta(f):''))].filter(Boolean).join('\n'); entry.tags=['class-option',d.cls.toLowerCase()];
+  }
+  if(type==='option'){
+    const fname=safe(d.feature), list=safe(d.list)||(fname?fname+' Options':'');
+    path=`Dm Rules/Classi/${d.cls}/${list||'Opzioni'}/${n}.md`;
+    md=`**Class:** [[${d.cls}]]\n`+(fname?`**Feature:** [[${fname}]]\n`:'')+(list?`**Options:** [[${list}]]\n`:'')+(d.cost?`**Cost:** ${d.cost}\n`:'')+(d.pre?`**Prerequisite:** ${d.pre}\n`:'')+
+       `\n**Description:**\n${para(d.desc)}\n\n**Tags:** #class-option ${fname?tag(fname)+' ':''}${tag(d.cls)}`;
+    entry.subcategory=`${d.cls} — ${list||'Opzioni'}`; entry.fields={Classe:d.cls}; if(fname) entry.fields.Privilegio=fname; if(d.cost) entry.fields.Costo=d.cost; if(d.pre) entry.fields.Prerequisito=d.pre;
+    entry.tags=['class-option',d.cls.toLowerCase()].concat(fname?[fname.toLowerCase()]:[]);
+  }
   if(type==='free'){
     const folder=(d.folder||'Dm Rules').replace(/^\/+|\/+$/g,'');
     path=`${folder}/${n}.md`;
@@ -414,7 +446,7 @@ function linkify(md,ctx){
   const used=new Set();
   const all=md.split('\n');
   return all.map((line,li)=>{
-    if(/^#|^\*\*(Tags|Class|Subclass):\*\*/.test(line)) return line;
+    if(/^#|^\*\*(Tags|Class|Subclass|Feature|Options):\*\*/.test(line)) return line;
     if(/^\|/.test(line)&&/^\|[-| :]+\|$/.test(all[li+1]||'')) return line; // table header row
     const inTable=/^\|/.test(line), bar=inTable?'\\|':'|';
     return line.split(/(\[\[[^\]]*\]\]|\*\*[^*]+\*\*|`[^`]*`|https?:\/\/\S+)/).map((seg,i)=>{
@@ -446,7 +478,7 @@ function learn(item){
   const d=item.data, L=S.links, add=e=>{L.learned=L.learned.filter(x=>!(x.term===e.term&&(x.cls||'')===(e.cls||''))); L.learned.push(e);};
   const tgt=item.path.replace(/\.md$/,'');
   const name=d.name; if(!name) return;
-  if(item.type==='feature'){ add({term:d.name,target:tgt,cat:'created',cls:d.cls}); }
+  if(item.type==='feature'||item.type==='option'){ add({term:d.name,target:tgt,cat:'created',cls:d.cls}); }
   else add({term:name,target:tgt.split('/').pop()===name?name:tgt,cat:'created'});
   if(item.type==='class') (d.feats||[]).forEach(f=>f.name&&!L.learned.some(x=>x.term===f.name&&x.cls===name&&!x.target.includes('#'))&&add({term:f.name,target:`${tgt}#${f.name}`,cat:'created',cls:name}));
   if(item.type==='subclass') (d.feats||[]).forEach(f=>f.name&&add({term:f.name,target:`${tgt}#Level ${f.level}: ${f.name}`,cat:'created',cls:d.cls}));
@@ -507,7 +539,7 @@ function renderForm(){
         <textarea aria-label="Testo" placeholder="${CREDIT_HINT}" data-ri="${i}" data-rk="text">${esc(it.text)}</textarea>
         <div class="tools" style="grid-column:1/-1"><button class="btn small" type="button" data-rclean="${i}">Pulisci testo incollato</button></div>
       </div>`).join('')}
-      <div class="tools"><button class="btn small" type="button" data-radd="${fd.id}">+ Aggiungi ${fd.nolevel?'tratto':'privilegio'}</button></div></div></div>`;
+      <div class="tools"><button class="btn small" type="button" data-radd="${fd.id}">+ Aggiungi ${fd.add||(fd.nolevel?'tratto':'privilegio')}</button></div></div></div>`;
   }).join('');
   const repKey=(TYPES[S.type].fields.find(x=>x.kind==='rep')||{}).id;
   f.querySelectorAll('[data-f]').forEach(el=>el.addEventListener(el.type==='checkbox'?'change':'input',()=>{d[el.dataset.f]=el.type==='checkbox'?el.checked:el.value;changed();}));
@@ -642,7 +674,16 @@ function sections(lines){
   lines.forEach(l=>{ if(l&&isHead(l)) secs.push({head:l,lines:[]}); else secs[secs.length-1].lines.push(l); });
   return secs;
 }
+/* option pages ("Metamagic Options", "Eldritch Invocation Options"): a short Title-case name followed by Cost:/Prerequisite: */
+const OPT_KV=/^(?:- )?(Cost|Prerequisites?|Repeatable)\s*:\s*(.*)$/i;
+function optionHeads(L){
+  const nx=i=>{for(let k=i+1;k<L.length;k++) if(L[k].trim()) return L[k].trim(); return '';};
+  const out=[];
+  L.forEach((l,i)=>{ const t=l.trim(); if(!t||/\t/.test(t)||levelHead(t)||!isLooseHead(t)||t.split(/\s+/).length>6) return; const n=nx(i); if(OPT_KV.test(n)) out.push({i,kv:true}); else if(n.length>40&&/[.!:]$/.test(n)&&!isLooseHead(n)) out.push({i,kv:false}); });
+  return out;
+}
 function detect(t){
+  { const L=t.split('\n'); if(optionHeads(L).filter(h=>h.kv).length>=3 && !/Casting Time\s*:/i.test(t)) return 'options'; }
   if(/Casting Time\s*:/i.test(t)) return 'spell';
   if(/Hit (Dice|Die|Points?)\b/i.test(t) && (hasLevels(t) || /\tFeatures\b/i.test(t))) return 'class';
   if(/Ability Scores\s*:/i.test(t) && /Skill Proficienc/i.test(t)) return 'background';
@@ -810,6 +851,14 @@ function parseClassWiki(L,m){
   return d;
 }
 
+const OPT_FEATURE={'Metamagic':'Metamagic','Eldritch Invocation':'Eldritch Invocations','Eldritch Invocations':'Eldritch Invocations','Maneuver':'Combat Superiority','Maneuvers':'Combat Superiority'};
+const CLASS_HINTS=[[/Sorcery Points?|Metamagic/i,'Sorcerer'],[/Invocation|Pact of the|Eldritch/i,'Warlock'],[/Superiority Di|Maneuver/i,'Fighter'],[/Focus Points?|Ki\b/i,'Monk'],[/Wild Shape/i,'Druid'],[/Channel Divinity/i,'Cleric'],[/Bardic Inspiration/i,'Bard'],[/Rage\b/i,'Barbarian'],[/Sneak Attack/i,'Rogue'],[/Lay On Hands/i,'Paladin'],[/Favored Enemy|Hunter's Mark/i,'Ranger'],[/Arcane Recovery/i,'Wizard']];
+function guessClass(text){
+  const cnt={}; CLASSES.forEach(c=>{cnt[c]=(text.match(new RegExp('\\b'+c+'\\b','g'))||[]).length;});
+  const best=CLASSES.slice().sort((a,b)=>cnt[b]-cnt[a])[0];
+  if(cnt[best]>0) return best;
+  const h=CLASS_HINTS.find(([re])=>re.test(text)); return h?h[1]:CLASSES[0];
+}
 const PARSERS={
   class(text,m){
     const L=prep(text), secs=sections(L), name=firstTitle(L);
@@ -878,6 +927,24 @@ const PARSERS={
     const hi=body.findIndex(l=>/^(Using a Higher-Level Spell Slot|Cantrip Upgrade|At Higher Levels)\b/i.test(l));
     if(hi>=0){ d.higher=joinLines(body.slice(hi),m).replace(/^\*\*[^*]+\*\*\s*/,'').replace(/^(Using a Higher-Level Spell Slot|Cantrip Upgrade|At Higher Levels)\.?\s*/i,''); d.desc=joinLines(body.slice(0,hi),m); }
     else d.desc=joinLines(body,m);
+    return d;
+  },
+  options(text,m){
+    const L=prep(text), d=blank('options');
+    const fi=L.findIndex(Boolean); let title=(L[fi]||'').trim();
+    if(isHead(title)) title=titleCase(title);
+    const heads=optionHeads(L).filter(h=>h.i>fi);
+    const hs=heads;
+    d.name=/Options$/i.test(title)?title:(title.replace(/s$/,'')+' Options');
+    d.feature=OPT_FEATURE[d.name.replace(/ Options$/i,'')]||d.name.replace(/ Options$/i,'');
+    d.cls=guessClass(text);
+    const end=hs.length?hs[0].i:L.length;
+    d.desc=joinLines(L.slice(fi+1,end),m);
+    d.feats=hs.map((h,k)=>{
+      const stop=k+1<hs.length?hs[k+1].i:L.length, body=[]; let cost='',pre='',repeat=false;
+      L.slice(h.i+1,stop).forEach(l=>{ const mm=l.trim().match(OPT_KV); if(mm&&!body.length){ const key=mm[1].toLowerCase(); if(key==='cost') cost=mm[2].trim(); else if(key.startsWith('prereq')) pre=mm[2].trim(); else repeat=true; } else body.push(l); });
+      return {level:'',name:L[h.i].trim(),cost,pre,text:joinLines(body,m)+(repeat?'\n\n**Repeatable.**':'')};
+    });
     return d;
   },
   species(text,m){
@@ -953,12 +1020,13 @@ $('btnBulk').onclick=()=>{
     const dup=S.queue.findIndex(q=>q.path===item.path); if(dup>=0) S.queue[dup]=item; else S.queue.push(item); made.push(item); learn(item); return item;};
   if(type==='class') d.star=$('bulkFeatures').checked;
   const main=push(type,d);
+  if(type==='options') d.feats.forEach(f=>{const od=blank('option'); Object.assign(od,{name:f.name,cls:d.cls,feature:d.feature,list:d.name,cost:f.cost||'',pre:f.pre||'',desc:f.text}); push('option',od);});
   if($('bulkFeatures').checked && (type==='class'||type==='subclass')){
     d.feats.forEach(f=>{const fd=blank('feature'); fd.name=f.name; fd.cls=type==='class'?(CLASSES.find(c=>c.toLowerCase()===d.name.toLowerCase())||d.name):d.cls; fd.lvl=f.level; fd.sub=type==='subclass'?d.name:''; fd.desc=f.text; push('feature',fd);});
   }
   S.type=type; S.drafts[type]=structuredClone(d); S.editing=main.id; S.isExample=false; persist(); renderAll();
   const nf=(d.feats||[]).length;
-  $('bulkResult').textContent=`Riconosciuto: ${TYPES[type].label} «${d.name}»${nf?` con ${nf} ${type==='species'?'tratti':'privilegi'}`:''}. Pronte ${made.length} note + il JSON per la scheda. Controlla l'anteprima qui sotto, poi scarica.`;
+  $('bulkResult').textContent=`Riconosciuto: ${TYPES[type].label} «${d.name}»${nf?` con ${nf} ${type==='species'?'tratti':type==='options'?'opzioni':'privilegi'}`:''}. Pronte ${made.length} note + il JSON per la scheda. Controlla l'anteprima qui sotto, poi scarica.`;
   $('btnBulkZip').hidden=false; $('zipHint').innerHTML=zipPlan().howto;
   $('bulk').value='';
 };
@@ -969,6 +1037,5 @@ renderAll();
   
 })();
 </script>
-
 </body>
 </html>
