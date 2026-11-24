@@ -294,9 +294,13 @@ function build(type,d){
     const fs=d.feats.filter(f=>f.name||f.text);
     const byL={}; fs.forEach(f=>{(byL[f.level]=byL[f.level]||[]).push(f);});
     const rows=Array.from({length:20},(_,i)=>{const L=i+1;return `| ${L} | +${2+Math.floor(i/4)} | ${(byL[L]||[]).map(f=>f.name).join(', ')||'—'} |`;});
+    const table=d.table||`| Level | Prof. Bonus | Features |\n|---|---|---|\n${rows.join('\n')}`;
+    const SPELL_LISTS={Bard:'Bard Spells',Cleric:'Cleric Spells',Paladin:'Paladin Spells',Sorcerer:'Sorcerer Spells',Wizard:'Wizard Spells',Druid:'Druid Spells',Ranger:'Ranger Spells',Warlock:'Warlock Spells'};
+    const spellLine=SPELL_LISTS[n]&&fs.some(f=>/spellcasting|pact magic/i.test(f.name))?`**Spell List:** [[${SPELL_LISTS[n]}]]\n`:'';
+    const featBlock=L=>byL[L].map(f=>d.star?`### ${f.name}\n![[Dm Rules/Classi/${n}/${safe(f.name)}]]`:`### ${f.name}\n${para(f.text)}`).join('\n\n');
     md=`**Primary Ability:** ${d.primary}\n**Hit Die:** ${d.hd}\n**Saving Throws:** ${d.saves}\n**Skills:** ${d.skills}\n**Weapon Proficiencies:** ${d.weapons}\n**Tool Proficiencies:** ${d.tools||'None'}\n**Armor Training:** ${d.armor}\n`+
-       (d.equip?`**Starting Equipment:**\n${para(d.equip)}\n`:'')+`\n${para(d.desc)}\n\n# ${n} Features\n\n| Level | Prof. Bonus | Features |\n|---|---|---|\n${rows.join('\n')}\n\n`+
-       Object.keys(byL).sort((a,b)=>a-b).map(L=>`## Level ${L}\n\n`+byL[L].map(f=>`### ${f.name}\n${para(f.text)}`).join('\n\n')).join('\n\n')+
+       spellLine+(d.equip?`**Starting Equipment:**\n${para(d.equip)}\n`:'')+`\n${para(d.desc)}\n\n# ${n} Features\n\n${table}\n\n`+
+       Object.keys(byL).sort((a,b)=>a-b).map(L=>`## Level ${L}\n\n`+featBlock(L)).join('\n\n')+
        (d.multi?`\n\n## Multiclassing\n${para(d.multi)}`:'')+`\n\n**Tags:** #class ${tag(n)}`;
     entry.subcategory='Classe 5e 2024'; entry.fields={'Caratteristica primaria':d.primary,'Dado Vita':d.hd,'Tiri salvezza':d.saves,'Abilità':d.skills,Armi:d.weapons,Armature:d.armor};
     entry.body=para(d.desc); entry.tags=['class',n.toLowerCase()];
@@ -387,7 +391,7 @@ function lkCompiled(){
   const map=new Map();
   lkEntries().forEach(e=>{
     if(e.cat!=='custom' && !L.cats[e.cat]) return;
-    if(stop.has(e.term) || e.term.length<3) return;
+    if((stop.has(e.term)&&!e.cls) || e.term.length<3) return;
     const k=e.term; if(!map.has(k)) map.set(k,[]); map.get(k).push(e);
   });
   const terms=[...map.keys()].sort((a,b)=>b.length-a.length);
@@ -418,6 +422,11 @@ function linkify(md,ctx){
         if(tgt===ctx.self||tgt.split('#')[0]===ctx.self||base===ctx.selfName) return m;
         if(!base.includes(' ') && ['weapons','armor','props','creatures','rules','items'].includes(e.cat)){
           const before=str.slice(0,off); if(/(^|[.!?:]\s+|^-\s+)$/.test(before)) return m; // single word at sentence start: probably not the game term
+        }
+        if(!base.includes(' ')){ // single word inside a longer Title-case name ("Potent Spellcasting", "Spellcasting Ability"): leave it
+          const before=str.slice(0,off), after=str.slice(off+m.length);
+          if(/[A-Z][\w'’]*\s$/.test(before) && !/(^|[.!?:]\s+|^-\s+)[A-Z][\w'’]*\s$/.test(before)) return m;
+          if(/^\s[A-Z][a-z]/.test(after) && !/^\s(I|A)\s/.test(after)) return m;
         }
         const key=tgt; if(L.first&&used.has(key)) return m; used.add(key);
         return tgt===m?`[[${tgt}]]`:`[[${tgt}${bar}${m}]]`;
@@ -597,11 +606,11 @@ function titleCase(s){
 const isHead=l=>l.length<=70 && /[A-Z]{3}/.test(l) && l===l.toUpperCase() && /^[A-Z0-9(]/.test(l) && !/^\*|^- /.test(l);
 /* "LEVEL 1: NAME", "1ST LEVEL: NAME", "LEVEL 1 - NAME", "1st-level: NAME" */
 const LEVEL_RE=/^(?:LEVEL\s+(\d{1,2})|(\d{1,2})(?:ST|ND|RD|TH)[\s-]+LEVEL)\s*[:.\-–—]\s*(.+)$/i;
-const levelHead=l=>{const m=l.match(LEVEL_RE); return m&&isHead(l)?{level:String(+(m[1]||m[2])),name:titleCase(m[3].trim())}:null;};
+const levelHead=l=>{const m=l.match(LEVEL_RE); if(!m) return null; if(isHead(l)) return {level:String(+(m[1]||m[2])),name:titleCase(m[3].trim())}; if(isLooseHead(l)) return {level:String(+(m[1]||m[2])),name:m[3].trim()}; return null;};
 const hasLevels=t=>t.split('\n').some(l=>levelHead(l.trim()));
 
 function prep(text){
-  return text.replace(/\r/g,'').replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'[[$1]]')
+  return text.replace(/\r/g,'').replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,convLink)
     .split('\n').map(l=>l.trim()).filter(l=>!/^(ADVERTISEMENT|Advertisement)$/.test(l))
     .map(l=>l.replace(/^(\*|•|●|▪)\s+/,'- '));
 }
@@ -618,7 +627,7 @@ function joinLines(lines,meters){
   return meters?toMeters(t):t;
 }
 function kv(lines,key){
-  const re=new RegExp('^(?:- )?(?:\\d+\\.\\s*)?'+key+'\\s*(?:\\([^)]*\\))?\\s*:\\s*(.+)$','i');
+  const re=new RegExp('^(?:- )?(?:\\d+\\.\\s*)?'+key+'\\s*(?:\\([^)]*\\))?\\s*(?::|\\t)\\s*(.+)$','i');
   for(const l of lines){const m=l.match(re); if(m) return m[1].trim();}
   return '';
 }
@@ -629,7 +638,7 @@ function sections(lines){
 }
 function detect(t){
   if(/Casting Time\s*:/i.test(t)) return 'spell';
-  if(/Hit (Dice|Die|Points)\b/i.test(t) && hasLevels(t)) return 'class';
+  if(/Hit (Dice|Die|Points?)\b/i.test(t) && (hasLevels(t) || /\tFeatures\b/i.test(t))) return 'class';
   if(/Ability Scores\s*:/i.test(t) && /Skill Proficienc/i.test(t)) return 'background';
   if(/Creature Type\s*:/i.test(t)) return 'species';
   if(hasLevels(t)) return 'subclass';
@@ -649,9 +658,116 @@ function collectFeatures(secs,meters){
 function introLines(lines){const i=lines.findIndex(Boolean); const out=[]; for(let k=i+1;k<lines.length;k++){ if(lines[k]&&isHead(lines[k])) break; out.push(lines[k]); } return out;}
 function firstTitle(lines){const l=lines.find(Boolean)||''; return isHead(l)?titleCase(l):l;}
 
+/* ---------- wikidot & similar sites ---------- */
+/* cut site chrome: header navigation, "Source:", footer */
+function stripWiki(text){
+  let L=text.replace(/\r/g,'').split('\n');
+  const fi=L.findIndex(l=>/Powered by \[?Wikidot|Terms of Service\]?.*\|.*Privacy|Unless otherwise stated, the content of this page is licensed/i.test(l));
+  if(fi>=0) L=L.slice(0,fi);
+  const ci=L.findIndex(l=>/^Create a Page\s*$/i.test(l.trim()));
+  if(ci>=0&&ci<80) L=L.slice(ci+1);
+  const CHROME=/^(community wiki|You should be logged in to clone a site\.?|Site Navigation|Create a Page|Edit|Rate|Tags|History|Files|Print|Site tools|\+ Options|page revision:.*|Last edited:.*|ADVERTISEMENT|Advertisement|Source:.*|Report a bug|Flag as objectionable|Update cookie settings|Fold|Unfold|Table of Contents)$/i;
+  const onlyLinks=/^(\[[^\]]+\]\([^)]+\)\s*)+$/;
+  L=L.filter(l=>{const t=l.trim(); return !(CHROME.test(t) || (onlyLinks.test(t)&&!/\t/.test(l)) || /^\[[^\]]*\]\(https?:\/\/[^)]*wikidot\.com\/?\)\s*$/.test(t));});
+  return L.join('\n').replace(/^\s+/,'');
+}
+/* a wiki link becomes [[Name]] only when it names a rule (spell, subclass…); list pages, PDFs and external sites become plain text */
+function convLink(m,txt,url){
+  const t=txt.trim();
+  if(/\.pdf($|\?|#)/i.test(url)||/spell ?lists?|spells? list/i.test(t)||!/^[A-Z0-9]/.test(t)||/media\.wizards|dndbeyond|wizards\.com/i.test(url)) return t;
+  return '[['+t+']]';
+}
+/* Title-case heading such as "Channel Divinity", "Level 1: Spellcasting", "Harness Divine Power (Optional)" */
+function isLooseHead(l){
+  l=(l||'').trim();
+  if(!l||l.length>64||/\t/.test(l)||/[.,;!?]$/.test(l)||/^[-(*\[|#]/.test(l)||/=/.test(l)||!/^[A-Z]/.test(l)) return false;
+  if(/^(Tools?|Armor(?: Training)?|Weapons?|Skills?|Saving Throws?|Hit (?:Dice|Die|Points?)|Source|Prerequisites?|Casting Time|Range|Components|Duration|Spell Lists?|Primary Ability|Equipment)\s*:/i.test(l)) return false;
+  if(/:\s/.test(l)){ const after=l.split(':').slice(1).join(':'); if(/\d/.test(after)&&!/^\s*(Level|LEVEL)/.test(l)) return false; }
+  const words=l.replace(/\([^)]*\)/g,' ').split(/[\s:]+/).filter(Boolean);
+  if(!words.length||words.length>9) return false;
+  return words.every(w=>/^[A-Z0-9'’"]/.test(w)||SMALL.has(w));
+}
+const LEVEL_PHRASE=/\b(?:at|from|starting at|beginning at|when you reach|once you reach)\s+(\d{1,2})(?:st|nd|rd|th)[\s-]+level\b|\b(?:starting at|beginning at|when you reach|at)\s+(?:[A-Z][a-z]+\s+)?level\s+(\d{1,2})\b/i;
+const levelInText=t=>{const m=String(t||'').match(LEVEL_PHRASE); return m?String(+(m[1]||m[2])):null;};
+const normFeat=f=>String(f||'').replace(/\([^)]*\)/g,'').replace(/\b(feature|features|improvement|improvements)\b/gi,'').replace(/\s+/g,' ').trim().toLowerCase();
+/* split on caps or Title-case headings; a short line sitting between two table rows is a table label, not a heading */
+function wikiSections(lines){
+  const secs=[{head:null,lines:[]}];
+  const nb=(i,dir)=>{for(let k=i+dir;k>=0&&k<lines.length;k+=dir){ if(lines[k].trim()) return lines[k]; } return '';};
+  lines.forEach((l,i)=>{
+    const head=l&&(isHead(l)||isLooseHead(l)) && !(/\t/.test(nb(i,-1))&&/\t/.test(nb(i,1)));
+    if(head) secs.push({head:l.trim(),lines:[]}); else secs[secs.length-1].lines.push(l);
+  });
+  return secs;
+}
+/* body text: tab tables become bullet lists ("- [[Life]] — Player's Handbook"), labels inside them italic */
+function renderBody(lines,m){
+  const out=[]; let seenTab=false, inList=false;
+  lines.forEach(l=>{
+    if(!l.trim()) return;
+    if(/\t/.test(l)){
+      const cells=l.split('\t').map(c=>c.trim()).filter(Boolean);
+      if(!seenTab){ seenTab=true; inList=true; return; } // first row = column headers
+      inList=true; out.push('- '+cells[0]+(cells.length>1?' — '+cells.slice(1).join(' · '):'')); return;
+    }
+    if(inList && isLooseHead(l)){ out.push('- *'+l.trim()+'*'); return; }
+    inList=false; out.push(l);
+  });
+  return joinLines(out,m);
+}
+/* class page in wiki form: intro, tab-separated class table, Title-case feature headings */
+function parseClassWiki(L,m){
+  const d=blank('class'); d.name=firstTitle(L);
+  const hi=L.findIndex(l=>/\t/.test(l)&&/\bFeatures\b/i.test(l)&&/\bLevel\b/i.test(l));
+  const lvlMap={}; let end=hi;
+  if(hi>=0){
+    const head=L[hi].split('\t').map(c=>c.trim()); head[0]='Level';
+    const rows=[]; let k=hi+1;
+    while(k<L.length && (/^\d{1,2}(st|nd|rd|th)?\s*\t/i.test(L[k])||!L[k].trim())){ if(L[k].trim()) rows.push(L[k].split('\t').map(c=>c.trim())); k++; }
+    end=k;
+    const fi=head.findIndex(h=>/features/i.test(h));
+    rows.forEach(r=>{ const lv=String(parseInt(r[0])); (r[fi]||'').split(/,\s*/).forEach(f=>{const key=normFeat(f); if(key&&!(key in lvlMap)) lvlMap[key]=lv;}); });
+    d.table='| '+head.join(' | ')+' |\n|'+head.map(()=>'---').join('|')+'|\n'+rows.map(r=>{const c=r.slice(); c[0]=String(parseInt(c[0])); while(c.length<head.length) c.push(''); return '| '+c.map(x=>x||'—').join(' | ')+' |';}).join('\n');
+  }
+  const first=L.findIndex(Boolean);
+  const introEnd=hi>=0?hi:L.findIndex((l,i)=>i>first&&(isHead(l)||isLooseHead(l)));
+  const intro=L.slice(first+1,introEnd<0?L.length:introEnd).filter(l=>l.trim()&&!/\t/.test(l)&&!/^The \w+\s*$/.test(l));
+  const mc=intro.find(l=>/score of 13/i.test(l));
+  if(mc){ d.multi=mc; const pm=mc.match(/have an? ([A-Z][a-z]+(?: (?:or|and) [A-Z][a-z]+)?) score/); if(pm) d.primary=pm[1]; }
+  d.desc=joinLines(intro.filter(l=>l!==mc),m);
+  const core=L.slice(0,Math.max(end,0)+1);
+  d.primary=d.primary||kv(L,'Primary Ability');
+  const feats=[]; let cur=null;
+  wikiSections(L.slice(end>=0?end:first+1)).forEach(sec=>{
+    if(!sec.head) return;
+    const h=sec.head.replace(/\s+/g,' '), body=sec.lines;
+    if(/^(Class Features|Core .+ Traits|Becoming an? .+|As an? .+)$/i.test(h)) return;
+    if(/^Multiclass/i.test(h)){ d.multi=renderBody(body,m); return; }
+    if(/^Hit Points$/i.test(h)){ const hd=(kv(body,'Hit (?:Dice|Die|Point Die)').match(/d(\d+)/)||[])[1]; if(hd) d.hd='d'+hd; return; }
+    if(/^Proficiencies$/i.test(h)){ d.armor=kv(body,'Armor(?: Training)?'); d.weapons=kv(body,'Weapons'); d.tools=kv(body,'Tools'); d.saves=kv(body,'Saving Throws'); d.skills=kv(body,'Skills'); return; }
+    if(/^(Starting )?Equipment$/i.test(h)){ let list=false; d.equip=joinLines(body.filter(x=>x.trim()).map(x=>{ if(list&&!/^- /.test(x)) return '- '+x; if(/:$/.test(x)) list=true; return x; }),m); return; }
+    const lh=levelHead(h);
+    const opt=/\(Optional\)/i.test(h), name=(lh?lh.name:h).replace(/\s*\(Optional\)\s*/i,'').trim(), key=normFeat(name);
+    const lp=levelInText(body.filter(x=>x.trim()).slice(0,2).join(' '));
+    let level=lh?lh.level:(lvlMap[key]||null);
+    if(!level && lp && (!cur||lp!==cur.level)) level=lp;
+    const text=(opt?'*Optional feature.*\n\n':'')+renderBody(body,m);
+    if(level){ cur={level,name,parts:[text]}; feats.push(cur); }
+    else if(cur){ cur.parts.push(`#### ${h}\n${renderBody(body,m)}`); }
+    else { cur={level:'1',name,parts:[text]}; feats.push(cur); }
+  });
+  d.feats=feats.map(f=>({level:f.level,name:f.name,text:f.parts.filter(Boolean).join('\n\n')}));
+  d.hd=d.hd==='d6'&&!/Hit (Dice|Die)/i.test(L.join('\n'))?d.hd:d.hd;
+  ['saves','skills','weapons','tools'].forEach(k=>{ if(!d[k]) d[k]=kv(L,{saves:'Saving Throws?(?: Proficiencies)?',skills:'Skill Proficiencies|Skills',weapons:'Weapon Proficiencies|Weapons',tools:'Tool Proficiencies|Tools'}[k]); });
+  if(!d.armor) d.armor=kv(L,'Armor Training|Armor');
+  if(d.hd==='d6'){ const hd=(kv(L,'Hit (?:Dice|Die|Point Die)').match(/d(\d+)/)||[])[1]; if(hd) d.hd='d'+hd; }
+  return d;
+}
+
 const PARSERS={
   class(text,m){
     const L=prep(text), secs=sections(L), name=firstTitle(L);
+    if(!secs.some(sc=>sc.head&&levelHead(sc.head))) return parseClassWiki(L,m);
     const d=blank('class'); d.name=name;
     d.primary=kv(L,'Primary Ability');
     const hd=(kv(L,'Hit (?:Dice|Die|Point Die)').match(/d(\d+)/)||[])[1]; if(hd) d.hd='d'+hd;
@@ -703,15 +819,16 @@ const PARSERS={
   spell(text,m){
     const L=prep(text).filter(Boolean), d=blank('spell');
     d.name=firstTitle(L);
-    const ll=L.find(l=>/^Level\s+\d|Cantrip/i.test(l)&&l.length<120)||'';
-    const lm=ll.match(/Level\s+(\d)/i); d.lvl=lm?lm[1]:(/cantrip/i.test(ll)?'Cantrip':d.lvl);
+    const ll=L.find(l=>/^(Level\s+\d|\d(st|nd|rd|th)-level\s|\w+\s+cantrip)|Cantrip/i.test(l)&&l.length<120)||'';
+    const lm=ll.match(/Level\s+(\d)|^(\d)(?:st|nd|rd|th)-level/i); d.lvl=lm?(lm[1]||lm[2]):(/cantrip/i.test(ll)?'Cantrip':d.lvl);
+    const sl=L.find(l=>/^Spell Lists?\.?\s/i.test(l))||'';
     const sc=SCHOOLS.find(s=>new RegExp(s,'i').test(ll)); if(sc) d.school=sc;
-    d.classes=CLASSES.filter(c=>new RegExp('\\b'+c+'\\b','i').test(ll));
+    d.classes=CLASSES.filter(c=>new RegExp('\\b'+c+'\\b','i').test(ll+' '+sl));
     d.cast=kv(L,'Casting Time'); d.range=m?toMeters(kv(L,'Range')):kv(L,'Range');
     const comp=kv(L,'Components'); d.comp=['V','S','M'].filter(c=>new RegExp('(^|[ ,])'+c+'($|[ ,(])').test(comp));
     const mm=comp.match(/\((.+)\)\s*$/); d.mat=mm?mm[1]:'';
     d.dur=kv(L,'Duration'); d.conc=/^concentration/i.test(d.dur); d.ritual=/ritual/i.test(d.cast)||/\britual\b/i.test(ll);
-    const body=L.filter(l=>l!==L[0]&&l!==ll&&!/^(Casting Time|Range|Components|Duration)\s*:/i.test(l));
+    const body=L.filter(l=>l!==L[0]&&l!==ll&&l!==sl&&!/^(Casting Time|Range|Components|Duration)\s*:/i.test(l));
     const hi=body.findIndex(l=>/^(Using a Higher-Level Spell Slot|Cantrip Upgrade|At Higher Levels)\b/i.test(l));
     if(hi>=0){ d.higher=joinLines(body.slice(hi),m).replace(/^\*\*[^*]+\*\*\s*/,'').replace(/^(Using a Higher-Level Spell Slot|Cantrip Upgrade|At Higher Levels)\.?\s*/i,''); d.desc=joinLines(body.slice(0,hi),m); }
     else d.desc=joinLines(body,m);
@@ -736,6 +853,40 @@ const PARSERS={
 };
 
 $('btnBulkZip').onclick=()=>$('btnZip').onclick();
+/* paste from a web page: read the formatted version so tables, lists and links survive */
+function htmlToText(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const title=doc.querySelector('#page-title'), root=doc.querySelector('#page-content')||doc.body;
+  const link=a=>{const t=a.textContent.replace(/\s+/g,' ').trim(), h=a.getAttribute('href')||''; if(!t) return ''; if(/^(https?:)?\/\//.test(h)||h.startsWith('/')) return `[${t}](${h.startsWith('/')&&!h.startsWith('//')?'https://wiki'+h:h.replace(/^\/\//,'https://')})`; return t;};
+  const inline=n=>{ if(n.nodeType===3) return n.nodeValue; if(n.nodeType!==1) return ''; if(/^(SCRIPT|STYLE|BUTTON|SVG)$/.test(n.tagName)) return ''; if(n.tagName==='A') return link(n); if(n.tagName==='BR') return ' '; return [...n.childNodes].map(inline).join(''); };
+  const out=[]; let line='';
+  const flush=()=>{ const t=line.replace(/[ \u00a0]+/g,' ').trim(); if(t) out.push(t); line=''; };
+  const BLOCK=/^(P|DIV|H[1-6]|LI|UL|OL|TABLE|TBODY|THEAD|BLOCKQUOTE|SECTION|ARTICLE|DL|DT|DD|HR)$/;
+  const walk=n=>{
+    if(n.nodeType===3){ line+=n.nodeValue.replace(/\s+/g,' '); return; }
+    if(n.nodeType!==1) return;
+    const t=n.tagName;
+    if(/^(SCRIPT|STYLE|NOSCRIPT|IFRAME|BUTTON|NAV|SVG|FORM)$/.test(t)) return;
+    if(t==='BR'){ flush(); return; }
+    if(t==='TR'){ flush(); out.push([...n.children].map(c=>inline(c).replace(/\s+/g,' ').trim()).join('\t')); return; }
+    if(t==='A'){ line+=link(n); return; }
+    if(BLOCK.test(t)) flush();
+    if(t==='LI') line='- ';
+    n.childNodes.forEach(walk);
+    if(BLOCK.test(t)) flush();
+  };
+  walk(root); flush();
+  if(title&&title.textContent.trim()) out.unshift(title.textContent.trim());
+  return out.join('\n');
+}
+$('bulk').addEventListener('paste',e=>{
+  const html=e.clipboardData&&e.clipboardData.getData('text/html'); if(!html) return;
+  let txt=''; try{ txt=htmlToText(html); }catch(err){ return; }
+  if(!txt.trim()) return;
+  e.preventDefault();
+  const ta=$('bulk'), a=ta.selectionStart, b=ta.selectionEnd;
+  ta.value=ta.value.slice(0,a)+txt+ta.value.slice(b); ta.selectionStart=ta.selectionEnd=a+txt.length;
+});
 let resetArmed=false;
 $('btnResetAll').onclick=()=>{
   const b=$('btnResetAll');
@@ -746,7 +897,7 @@ $('btnResetAll').onclick=()=>{
   persist(); renderForm(); renderPreview(); toast('Tutti i campi sono vuoti. La lista da esportare è rimasta com’era.');
 };
 $('btnBulk').onclick=()=>{
-  const text=$('bulk').value; if(!text.trim()){ $('bulkResult').textContent='Incolla prima il testo.'; return; }
+  const text=stripWiki($('bulk').value); if(!text.trim()){ $('bulkResult').textContent='Incolla prima il testo.'; return; }
   const m=$('bulkMeters').checked;
   let type=$('bulkType').value; if(type==='auto') type=detect(text);
   if(!type){ $('bulkResult').textContent='Non ho capito che tipo di pagina è: scegli il tipo dal menu e riprova.'; return; }
@@ -754,6 +905,7 @@ $('btnBulk').onclick=()=>{
   const made=[];
   const push=(t,data)=>{const b=build(t,data); const item={id:'n'+Date.now()+'_'+made.length,type:t,data:structuredClone(data),name:b.name,path:b.path};
     const dup=S.queue.findIndex(q=>q.path===item.path); if(dup>=0) S.queue[dup]=item; else S.queue.push(item); made.push(item); learn(item); return item;};
+  if(type==='class') d.star=$('bulkFeatures').checked;
   const main=push(type,d);
   if($('bulkFeatures').checked && (type==='class'||type==='subclass')){
     d.feats.forEach(f=>{const fd=blank('feature'); fd.name=f.name; fd.cls=type==='class'?(CLASSES.find(c=>c.toLowerCase()===d.name.toLowerCase())||d.name):d.cls; fd.lvl=f.level; fd.sub=type==='subclass'?d.name:''; fd.desc=f.text; push('feature',fd);});
