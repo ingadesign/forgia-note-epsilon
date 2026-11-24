@@ -1067,6 +1067,7 @@ $('btnBulk').onclick=()=>{
   S.type=type; S.drafts[type]=structuredClone(d); S.editing=main.id; S.isExample=false; persist(); renderAll();
   const nf=(d.feats||[]).length;
   $('bulkResult').textContent=`Riconosciuto: ${TYPES[type].label} «${d.name}»${nf?` con ${nf} ${type==='species'?'tratti':type==='options'?'opzioni':'privilegi'}`:''}. Pronte ${made.length} note + il JSON per la scheda. Controlla l'anteprima qui sotto, poi scarica.`;
+  if(type==='subclass'&&!WIKI.crumb.length) $('bulkResult').textContent+=` Attenzione: non ho trovato il titolo della pagina, quindi ho chiamato la sottoclasse «${d.name}». Se è il motto e non il nome, svuota la lista e ricopia la pagina partendo dal titolo (quello sopra «Home » Classes » …»).`;
   $('btnBulkZip').hidden=false; $('zipHint').innerHTML=zipPlan().howto;
   $('bulk').value='';
 };
