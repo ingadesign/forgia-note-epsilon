@@ -408,8 +408,10 @@ function linkify(md,ctx){
   const L=S.links; if(!L.on) return md;
   const C=lkCompiled(); if(!C.re) return md;
   const used=new Set();
-  return md.split('\n').map(line=>{
+  const all=md.split('\n');
+  return all.map((line,li)=>{
     if(/^#|^\*\*(Tags|Class|Subclass):\*\*/.test(line)) return line;
+    if(/^\|/.test(line)&&/^\|[-| :]+\|$/.test(all[li+1]||'')) return line; // table header row
     const inTable=/^\|/.test(line), bar=inTable?'\\|':'|';
     return line.split(/(\[\[[^\]]*\]\]|\*\*[^*]+\*\*|`[^`]*`|https?:\/\/\S+)/).map((seg,i)=>{
       if(i%2) return seg;
@@ -627,7 +629,7 @@ function joinLines(lines,meters){
   return meters?toMeters(t):t;
 }
 function kv(lines,key){
-  const re=new RegExp('^(?:- )?(?:\\d+\\.\\s*)?'+key+'\\s*(?:\\([^)]*\\))?\\s*(?::|\\t)\\s*(.+)$','i');
+  const re=new RegExp('^(?:- )?(?:\\d+\\.\\s*)?(?:'+key+')\\s*(?:\\([^)]*\\))?\\s*(?::|\\t)\\s*(.+)$','i');
   for(const l of lines){const m=l.match(re); if(m) return m[1].trim();}
   return '';
 }
@@ -666,7 +668,8 @@ function stripWiki(text){
   if(fi>=0) L=L.slice(0,fi);
   const ci=L.findIndex(l=>/^Create a Page\s*$/i.test(l.trim()));
   if(ci>=0&&ci<80) L=L.slice(ci+1);
-  const CHROME=/^(community wiki|You should be logged in to clone a site\.?|Site Navigation|Create a Page|Edit|Rate|Tags|History|Files|Print|Site tools|\+ Options|page revision:.*|Last edited:.*|ADVERTISEMENT|Advertisement|Source:.*|Report a bug|Flag as objectionable|Update cookie settings|Fold|Unfold|Table of Contents)$/i;
+  L=L.filter(l=>!/\s»\s/.test(l));
+  const CHROME=/^(Menu|Help Docs|Click here to edit contents of this page\.?|Click here to toggle editing of individual sections of the page.*|class|subclass|Page tags:.*|community wiki|You should be logged in to clone a site\.?|Site Navigation|Create a Page|Edit|Rate|Tags|History|Files|Print|Site tools|\+ Options|page revision:.*|Last edited:.*|ADVERTISEMENT|Advertisement|Source:.*|Report a bug|Flag as objectionable|Update cookie settings|Fold|Unfold|Table of Contents)$/i;
   const onlyLinks=/^(\[[^\]]+\]\([^)]+\)\s*)+$/;
   L=L.filter(l=>{const t=l.trim(); return !(CHROME.test(t) || (onlyLinks.test(t)&&!/\t/.test(l)) || /^\[[^\]]*\]\(https?:\/\/[^)]*wikidot\.com\/?\)\s*$/.test(t));});
   return L.join('\n').replace(/^\s+/,'');
@@ -694,9 +697,18 @@ const normFeat=f=>String(f||'').replace(/\([^)]*\)/g,'').replace(/\b(feature|fea
 function wikiSections(lines){
   const secs=[{head:null,lines:[]}];
   const nb=(i,dir)=>{for(let k=i+dir;k>=0&&k<lines.length;k+=dir){ if(lines[k].trim()) return lines[k]; } return '';};
+  let listMode=false;
   lines.forEach((l,i)=>{
+    const t=l.trim(), cur=secs[secs.length-1];
+    if(listMode){
+      if(!t) return;
+      if(/^Name\s*$/i.test(t)) return;
+      if(isLooseHead(t)&&!levelHead(t)&&!isHead(t)&&t.split(/\s+/).length<=5){ cur.lines.push('- '+(/^\[\[/.test(t)?t:'[['+t+']]')); return; }
+      listMode=false;
+    }
     const head=l&&(isHead(l)||isLooseHead(l)) && !(/\t/.test(nb(i,-1))&&/\t/.test(nb(i,1)));
-    if(head) secs.push({head:l.trim(),lines:[]}); else secs[secs.length-1].lines.push(l);
+    if(head){ secs.push({head:t,lines:[]}); if(/Subclasses$/i.test(t)&&/^Name *$/i.test(nb(i,1).trim())&&!/\t/.test(nb(i,1))) listMode=true; }
+    else cur.lines.push(l);
   });
   return secs;
 }
@@ -718,33 +730,57 @@ function renderBody(lines,m){
 /* class page in wiki form: intro, tab-separated class table, Title-case feature headings */
 function parseClassWiki(L,m){
   const d=blank('class'); d.name=firstTitle(L);
-  const hi=L.findIndex(l=>/\t/.test(l)&&/\bFeatures\b/i.test(l)&&/\bLevel\b/i.test(l));
-  const lvlMap={}; let end=hi;
-  if(hi>=0){
-    const head=L[hi].split('\t').map(c=>c.trim()); head[0]='Level';
-    const rows=[]; let k=hi+1;
-    while(k<L.length && (/^\d{1,2}(st|nd|rd|th)?\s*\t/i.test(L[k])||!L[k].trim())){ if(L[k].trim()) rows.push(L[k].split('\t').map(c=>c.trim())); k++; }
-    end=k;
-    const fi=head.findIndex(h=>/features/i.test(h));
-    rows.forEach(r=>{ const lv=String(parseInt(r[0])); (r[fi]||'').split(/,\s*/).forEach(f=>{const key=normFeat(f); if(key&&!(key in lvlMap)) lvlMap[key]=lv;}); });
-    d.table='| '+head.join(' | ')+' |\n|'+head.map(()=>'---').join('|')+'|\n'+rows.map(r=>{const c=r.slice(); c[0]=String(parseInt(c[0])); while(c.length<head.length) c.push(''); return '| '+c.map(x=>x||'—').join(' | ')+' |';}).join('\n');
-  }
   const first=L.findIndex(Boolean);
-  const introEnd=hi>=0?hi:L.findIndex((l,i)=>i>first&&(isHead(l)||isLooseHead(l)));
-  const intro=L.slice(first+1,introEnd<0?L.length:introEnd).filter(l=>l.trim()&&!/\t/.test(l)&&!/^The \w+\s*$/.test(l));
+  /* every "Level<TAB>…" table before the first feature heading is part of the class table; merge them by level */
+  const firstFeat=L.findIndex(l=>levelHead(l.trim()));
+  const used=new Set(); const heads=[]; const byLevel={};
+  L.forEach((l,i)=>{
+    if(firstFeat>=0&&i>firstFeat) return;
+    if(!/\t/.test(l)||!/^(Level|Lvl)\b/i.test(l.trim())) return;
+    const h=l.split('\t').map(c=>c.trim()); used.add(i);
+    const startCol=heads.length?1:0; const colIdx=[]; h.forEach((c,ci)=>{ if(ci>=startCol&&c){ colIdx.push([ci,heads.length]); heads.push(ci===0?'Level':c);} });
+    for(let k=i+1;k<L.length;k++){
+      if(!L[k].trim()){ continue; }
+      if(!/^\d{1,2}(st|nd|rd|th)?\s*\t/i.test(L[k])) break;
+      used.add(k); const r=L[k].split('\t').map(c=>c.trim()); const lv=String(parseInt(r[0]));
+      const row=byLevel[lv]=byLevel[lv]||{}; colIdx.forEach(([ci,hi])=>{ row[hi]=r[ci]; });
+    }
+  });
+  const lvlMap={};
+  if(heads.length){
+    heads[0]='Level';
+    const fi=heads.findIndex(h=>/features/i.test(h));
+    const levels=Object.keys(byLevel).map(Number).sort((a,b)=>a-b);
+    d.table='| '+heads.join(' | ')+' |\n|'+heads.map(()=>'---').join('|')+'|\n'+levels.map(lv=>{const r=byLevel[lv]; return '| '+heads.map((h,hi)=>hi===0?String(lv):((r[hi]||'').replace(/^-$/,'')||'—')).join(' | ')+' |';}).join('\n');
+    if(fi>=0) levels.forEach(lv=>String(byLevel[lv][fi]||'').split(/,\s*/).forEach(f=>{const key=normFeat(f); if(key&&key!=='-'&&!(key in lvlMap)) lvlMap[key]=String(lv);}));
+  }
+  /* intro = paragraphs after the title, up to the first table or heading */
+  let introEnd=L.findIndex((l,i)=>i>first&&(/\t/.test(l)||isHead(l)||isLooseHead(l)));
+  if(introEnd<0) introEnd=L.length;
+  const intro=L.slice(first+1,introEnd).filter(l=>l.trim());
   const mc=intro.find(l=>/score of 13/i.test(l));
   if(mc){ d.multi=mc; const pm=mc.match(/have an? ([A-Z][a-z]+(?: (?:or|and) [A-Z][a-z]+)?) score/); if(pm) d.primary=pm[1]; }
   d.desc=joinLines(intro.filter(l=>l!==mc),m);
-  const core=L.slice(0,Math.max(end,0)+1);
-  d.primary=d.primary||kv(L,'Primary Ability');
+  /* core traits (2024 table "Label<TAB>Value") or "Label: value" lines */
+  const K=k=>kv(L,k);
+  d.primary=d.primary||K('Primary Ability');
+  const hdv=K('Hit (?:Point )?(?:Dice|Die)'); const hd=(hdv.match(/d(\d+)/i)||[])[1]; if(hd) d.hd='d'+hd;
+  d.saves=K('Saving Throw Proficiencies|Saving Throws?');
+  d.skills=K('Skill Proficiencies|Skills');
+  d.weapons=K('Weapon Proficiencies|Weapons');
+  d.tools=K('Tool Proficiencies|Tools');
+  d.armor=K('Armor Training|Armor');
+  const eq=K('Starting Equipment'); if(eq) d.equip=eq;
+  /* sections over the rest of the page, without the class tables */
+  const rest=L.slice(introEnd).filter((l,i)=>!used.has(i+introEnd));
   const feats=[]; let cur=null;
-  wikiSections(L.slice(end>=0?end:first+1)).forEach(sec=>{
+  wikiSections(rest).forEach(sec=>{
     if(!sec.head) return;
     const h=sec.head.replace(/\s+/g,' '), body=sec.lines;
-    if(/^(Class Features|Core .+ Traits|Becoming an? .+|As an? .+)$/i.test(h)) return;
-    if(/^Multiclass/i.test(h)){ d.multi=renderBody(body,m); return; }
-    if(/^Hit Points$/i.test(h)){ const hd=(kv(body,'Hit (?:Dice|Die|Point Die)').match(/d(\d+)/)||[])[1]; if(hd) d.hd='d'+hd; return; }
-    if(/^Proficiencies$/i.test(h)){ d.armor=kv(body,'Armor(?: Training)?'); d.weapons=kv(body,'Weapons'); d.tools=kv(body,'Tools'); d.saves=kv(body,'Saving Throws'); d.skills=kv(body,'Skills'); return; }
+    if(/Multiclass/i.test(h)){ d.multi=renderBody(body,m); return; }
+    if(/^(Class Features|.+ Class Features|Core .+ Traits|Becoming an? .+|As an? .+|.+ Features \(Part [A-Z]\))$/i.test(h)) return;
+    if(/^Hit Points$/i.test(h)) return;
+    if(/^Proficiencies$/i.test(h)) return;
     if(/^(Starting )?Equipment$/i.test(h)){ let list=false; d.equip=joinLines(body.filter(x=>x.trim()).map(x=>{ if(list&&!/^- /.test(x)) return '- '+x; if(/:$/.test(x)) list=true; return x; }),m); return; }
     const lh=levelHead(h);
     const opt=/\(Optional\)/i.test(h), name=(lh?lh.name:h).replace(/\s*\(Optional\)\s*/i,'').trim(), key=normFeat(name);
@@ -754,13 +790,8 @@ function parseClassWiki(L,m){
     const text=(opt?'*Optional feature.*\n\n':'')+renderBody(body,m);
     if(level){ cur={level,name,parts:[text]}; feats.push(cur); }
     else if(cur){ cur.parts.push(`#### ${h}\n${renderBody(body,m)}`); }
-    else { cur={level:'1',name,parts:[text]}; feats.push(cur); }
   });
   d.feats=feats.map(f=>({level:f.level,name:f.name,text:f.parts.filter(Boolean).join('\n\n')}));
-  d.hd=d.hd==='d6'&&!/Hit (Dice|Die)/i.test(L.join('\n'))?d.hd:d.hd;
-  ['saves','skills','weapons','tools'].forEach(k=>{ if(!d[k]) d[k]=kv(L,{saves:'Saving Throws?(?: Proficiencies)?',skills:'Skill Proficiencies|Skills',weapons:'Weapon Proficiencies|Weapons',tools:'Tool Proficiencies|Tools'}[k]); });
-  if(!d.armor) d.armor=kv(L,'Armor Training|Armor');
-  if(d.hd==='d6'){ const hd=(kv(L,'Hit (?:Dice|Die|Point Die)').match(/d(\d+)/)||[])[1]; if(hd) d.hd='d'+hd; }
   return d;
 }
 
@@ -868,7 +899,7 @@ function htmlToText(html){
     const t=n.tagName;
     if(/^(SCRIPT|STYLE|NOSCRIPT|IFRAME|BUTTON|NAV|SVG|FORM)$/.test(t)) return;
     if(t==='BR'){ flush(); return; }
-    if(t==='TR'){ flush(); out.push([...n.children].map(c=>inline(c).replace(/\s+/g,' ').trim()).join('\t')); return; }
+    if(t==='TR'){ flush(); const cells=[...n.children].map(c=>inline(c).replace(/\s+/g,' ').trim()); if(cells.length===1){ if(!n.querySelector('th')&&cells[0]) out.push('- '+cells[0]); return; } out.push(cells.join('\t')); return; }
     if(t==='A'){ line+=link(n); return; }
     if(BLOCK.test(t)) flush();
     if(t==='LI') line='- ';
