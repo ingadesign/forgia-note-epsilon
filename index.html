@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Forgia Note Epsilon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=Alegreya+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* Layout: workbench — type rail on top, form left, live markdown "scroll" right, export tray below */
+:root{
+  --bg:#eef0f3; --panel:#ffffff; --ink:#1d2430; --muted:#5d6878; --line:#d5dae2;
+  --accent:#7a2e3b; --accent-ink:#ffffff; --accent-soft:#f3e6e8; --code-bg:#f6f7f9; --ok:#2f6b4f;
+  --f-display:"Alegreya SC", Georgia, serif;
+  --f-body:"Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#14171d; --panel:#1c2028; --ink:#e4e7ec; --muted:#9aa3b2; --line:#2e3440;
+  --accent:#d98393; --accent-ink:#1a0f12; --accent-soft:#3a2328; --code-bg:#161a21; --ok:#7fc4a0; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#14171d; --panel:#1c2028; --ink:#e4e7ec; --muted:#9aa3b2; --line:#2e3440;
+  --accent:#d98393; --accent-ink:#1a0f12; --accent-soft:#3a2328; --code-bg:#161a21; --ok:#7fc4a0; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px}
+h1{font-family:var(--f-display);font-weight:700;font-size:1.9rem;margin:0;letter-spacing:.02em;text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:60ch}
+h2{font-family:var(--f-display);font-weight:500;font-size:1.15rem;margin:0;letter-spacing:.03em}
+.rail{display:flex;flex-wrap:wrap;gap:8px}
+.rail button{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  padding:7px 14px;border-radius:999px;cursor:pointer}
+.rail button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+@media (max-width:520px){.form{grid-template-columns:minmax(0,1fr)}}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld.full{grid-column:1/-1}
+.lb{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+input[type=text],select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;width:100%}
+textarea{min-height:150px;resize:vertical;line-height:1.5}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.checks{display:flex;flex-wrap:wrap;gap:6px 14px}
+.checks label{display:flex;align-items:center;gap:5px;font-size:.95rem;cursor:pointer}
+.hint{font-size:.85rem;color:var(--muted)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;border-radius:var(--r);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.small{padding:4px 9px;font-size:.88rem}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.rep{display:flex;flex-direction:column;gap:10px}
+.rep-item{border:1px solid var(--line);border-radius:var(--r);padding:10px;display:grid;grid-template-columns:90px minmax(0,1fr) auto;gap:8px;align-items:start;background:var(--bg)}
+.rep-item textarea{grid-column:1/-1;min-height:90px}
+.path{font-family:var(--f-mono);font-size:.82rem;color:var(--muted);word-break:break-all}
+.path b{color:var(--ink);font-weight:500}
+pre.preview{font-family:var(--f-mono);font-size:.84rem;background:var(--code-bg);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;margin:0;white-space:pre-wrap;word-break:break-word;max-height:620px;overflow:auto;line-height:1.55}
+.toast{font-size:.9rem;color:var(--ok);min-height:1.3em}
+.tray table{width:100%;border-collapse:collapse;font-size:.95rem}
+.tray th{text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line)}
+.tray td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.tray .scroll{overflow-x:auto}
+.pill{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.empty{color:var(--muted);padding:10px 0}
+.split{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+.example{font-size:.8rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Forgia Note Epsilon</h1>
+    <p>Scegli il tipo, compila i campi e incolla il testo dal manuale. La nota esce nel formato del vault, con il percorso giusto.</p>
+    <button class="btn" id="btnResetAll" type="button" title="Svuota «Incolla tutto» e i moduli di tutti i tipi. La lista da esportare resta.">↻ Svuota tutti i campi</button>
+  </header>
+
+  <section class="panel" aria-labelledby="pasteTitle">
+    <div class="split"><h2 id="pasteTitle">Incolla tutto</h2><span class="hint">Una pagina alla volta: classe, sottoclasse, talento, background, incantesimo o specie.</span></div>
+    <textarea id="bulk" style="min-height:130px" placeholder="Incolla qui la pagina intera (es. tutta la classe Fighter, dal titolo all'ultimo privilegio)."></textarea>
+    <div class="tools">
+      <label class="hint" for="bulkType">Tipo</label>
+      <select id="bulkType" style="width:auto">
+        <option value="auto">Riconosci da solo</option><option value="class">Classe</option><option value="subclass">Sottoclasse</option>
+        <option value="feat">Talento</option><option value="background">Background</option><option value="spell">Incantesimo</option><option value="species">Specie</option>
+      </select>
+      <label class="hint"><input type="checkbox" id="bulkFeatures" checked> crea anche una nota per ogni privilegio</label>
+      <label class="hint"><input type="checkbox" id="bulkMeters" checked> piedi → metri</label>
+      <button class="btn primary" id="btnBulk" type="button">Crea le note</button>
+    </div>
+    <div class="split"><div class="hint" id="bulkResult" role="status" aria-live="polite"></div><button class="btn primary" id="btnBulkZip" type="button" hidden>Scarica le note (.zip)</button></div>
+  </section>
+
+  <details class="panel" id="linkPanel">
+    <summary class="split" style="cursor:pointer"><h2 style="display:inline">Collegamenti automatici</h2><span class="hint" id="linkCount"></span></summary>
+    <p class="hint" style="margin:0">Le parole che corrispondono a note del vault diventano link Obsidian, ad esempio «Charmed» → <code>[[Charmed-Affascinato|Charmed]]</code>. Anche le note che crei qui entrano nell'elenco, così le classi successive si collegano a quelle già fatte.</p>
+    <div class="form">
+      <div class="fld full"><span class="lb">Cosa collegare</span><div class="checks" id="linkCats"></div></div>
+      <div class="fld full"><div class="checks">
+        <label><input type="checkbox" id="lkOn"> Collegamenti attivi</label>
+        <label><input type="checkbox" id="lkFirst"> Solo la prima volta in ogni nota</label>
+      </div></div>
+      <div class="fld"><label class="lb" for="lkStop">Non collegare mai</label><textarea id="lkStop" style="min-height:110px" placeholder="Una parola per riga"></textarea>
+        <span class="hint">Parole ambigue, es. «Light» (proprietà, ma anche «Light Armor»).</span></div>
+      <div class="fld"><label class="lb" for="lkCustom">Collegamenti in più</label><textarea id="lkCustom" style="min-height:110px" placeholder="parola = Nome nota&#10;es. Network = Network"></textarea>
+        <span class="hint">Una riga per collegamento: <code>parola = Nome della nota</code>.</span></div>
+      <div class="fld full"><span class="lb">Aggiorna l'elenco delle note</span>
+        <div class="tools"><label class="btn small" for="lkFolder" style="display:inline-block">Scegli la cartella Epsilon_System…</label>
+        <input type="file" id="lkFolder" webkitdirectory multiple hidden>
+        <button class="btn small" type="button" id="lkForget">Dimentica le note create qui</button></div>
+        <span class="hint">Il browser legge solo i nomi dei file .md, non il contenuto. Fallo quando aggiungi note nuove al vault.</span></div>
+    </div>
+  </details>
+
+  <nav class="rail" id="rail" aria-label="Tipo di nota"></nav>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="formTitle">
+      <div class="split"><h2 id="formTitle">Dati</h2><span class="example" id="exampleTag" hidden>Esempio SRD — sovrascrivilo</span></div>
+      <div class="form" id="form"></div>
+      <div class="tools">
+        <button class="btn" id="btnNew" type="button">Svuota modulo</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="prevTitle">
+      <div class="split"><h2 id="prevTitle">Anteprima</h2></div>
+      <div class="path" id="path"></div>
+      <pre class="preview" id="preview"></pre>
+      <div class="tools">
+        <button class="btn primary" id="btnQueue" type="button">Aggiungi alla lista</button>
+        <button class="btn" id="btnCopy" type="button">Copia testo</button>
+        <button class="btn" id="btnSaveOne" type="button">Scarica .md</button>
+      </div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <section class="panel tray" aria-labelledby="trayTitle">
+    <div class="split">
+      <h2 id="trayTitle">Lista da esportare <span class="pill" id="count">0</span></h2>
+      <div class="tools">
+        <button class="btn primary" id="btnZip" type="button">Scarica tutto (.zip)</button>
+        <button class="btn" id="btnJson" type="button">JSON per la scheda online</button>
+        <button class="btn" id="btnClear" type="button">Svuota lista</button>
+      </div>
+    </div>
+    <p class="hint" id="zipHint">Lo .zip contiene le note .md e il file JSON per la scheda (da caricare con «Importa regole custom»).</p>
+    <div class="scroll"><table><thead><tr><th>Nota</th><th>Tipo</th><th>Percorso</th><th></th></tr></thead><tbody id="queue"></tbody></table></div>
+    <div class="empty" id="queueEmpty">Nessuna nota in lista. Compila il modulo e premi «Aggiungi alla lista».</div>
+  </section>
+</div>
+
+<script>
+/* ------------------------------------------------------------ data */
+const CLASSES=['Barbarian','Bard','Cleric','Druid','Fighter','Monk','Paladin','Ranger','Rogue','Sorcerer','Warlock','Wizard'];
+const SCHOOLS=['Abjuration','Conjuration','Divination','Enchantment','Evocation','Illusion','Necromancy','Transmutation'];
+const ABILITIES=['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'];
+const SKILLS=['Acrobatics','Animal Handling','Arcana','Athletics','Deception','History','Insight','Intimidation','Investigation','Medicine','Nature','Perception','Performance','Persuasion','Religion','Sleight of Hand','Stealth','Survival'];
+const SPELL_LEVELS=['Cantrip','1','2','3','4','5','6','7','8','9'];
+const ORD={1:'1st',2:'2nd',3:'3rd'};
+const CREDIT_HINT='Incolla dal manuale. Usa «Pulisci» per sistemare a capo, trattini e piedi→metri.';
+
+/* field kinds: text, textarea, select, checks, bool, rep (repeater: level+name+text) */
+const TYPES={
+  class:{label:'Classe',cat:'classes',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'es. Fighter'},
+    {id:'primary',label:'Caratteristica primaria',kind:'text',ph:'es. Strength or Dexterity'},
+    {id:'hd',label:'Dado Vita',kind:'select',opts:['d6','d8','d10','d12']},
+    {id:'saves',label:'Tiri salvezza',kind:'text',ph:'es. Strength, Constitution'},
+    {id:'skills',label:'Abilità',kind:'text',full:true,ph:'Choose 2: …'},
+    {id:'weapons',label:'Armi',kind:'text',ph:'Simple Weapons, Martial Weapons'},
+    {id:'tools',label:'Strumenti',kind:'text',ph:'None'},
+    {id:'armor',label:'Armature',kind:'text',full:true,ph:'Light Armor, Medium Armor, …'},
+    {id:'equip',label:'Equipaggiamento iniziale',kind:'textarea',full:true,small:true},
+    {id:'desc',label:'Introduzione',kind:'textarea',full:true,small:true},
+    {id:'multi',label:'Multiclasse',kind:'textarea',full:true,small:true},
+    {id:'feats',label:'Privilegi',kind:'rep',full:true}]},
+  feat:{label:'Talento',cat:'feats',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'es. Tough'},
+    {id:'type',label:'Tipo',kind:'select',opts:['Origin Feat','General Feat','Fighting Style Feat','Epic Boon Feat']},
+    {id:'pre',label:'Prerequisito',kind:'text',ph:'es. Level 4+, Strength 13+'},
+    {id:'rep',label:'Ripetibile',kind:'bool'},
+    {id:'desc',label:'Descrizione',kind:'textarea',full:true,clean:true}]},
+  background:{label:'Background',cat:'misc',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'es. Sailor'},
+    {id:'feat',label:'Talento',kind:'text',ph:'es. Tavern Brawler'},
+    {id:'abil',label:'Caratteristiche (3)',kind:'checks',opts:ABILITIES,full:true},
+    {id:'skills',label:'Competenze nelle abilità (2)',kind:'checks',opts:SKILLS,full:true},
+    {id:'tool',label:'Strumento',kind:'text',ph:"es. Navigator's Tools"},
+    {id:'equip',label:'Equipaggiamento',kind:'text',ph:'(A) … ; or (B) 50 GP'},
+    {id:'desc',label:'Descrizione',kind:'textarea',full:true,clean:true}]},
+  subclass:{label:'Sottoclasse',cat:'classes',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'es. Battle Master'},
+    {id:'cls',label:'Classe',kind:'select',opts:CLASSES},
+    {id:'summary',label:'Motto / sintesi',kind:'text',full:true,ph:'es. Master Sophisticated Battle Techniques'},
+    {id:'desc',label:'Introduzione',kind:'textarea',full:true,clean:true},
+    {id:'feats',label:'Privilegi',kind:'rep',full:true}]},
+  feature:{label:'Privilegio di classe',cat:'classes',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'es. Action Surge'},
+    {id:'cls',label:'Classe',kind:'select',opts:CLASSES},
+    {id:'lvl',label:'Livello',kind:'select',opts:Array.from({length:20},(_,i)=>String(i+1))},
+    {id:'sub',label:'Sottoclasse (se c’è)',kind:'text',ph:'lascia vuoto se è della classe'},
+    {id:'desc',label:'Descrizione',kind:'textarea',full:true,clean:true}]},
+  spell:{label:'Incantesimo',cat:'spells',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'es. Fireball'},
+    {id:'lvl',label:'Livello',kind:'select',opts:SPELL_LEVELS},
+    {id:'school',label:'Scuola',kind:'select',opts:SCHOOLS},
+    {id:'cast',label:'Tempo di lancio',kind:'text',ph:'Action'},
+    {id:'classes',label:'Classi',kind:'checks',opts:CLASSES,full:true},
+    {id:'range',label:'Gittata',kind:'text',ph:'es. 45 meters'},
+    {id:'dur',label:'Durata',kind:'text',ph:'es. Instantaneous'},
+    {id:'comp',label:'Componenti',kind:'checks',opts:['V','S','M']},
+    {id:'mat',label:'Materiale',kind:'text',ph:'es. a ball of bat guano and sulfur'},
+    {id:'conc',label:'Concentrazione',kind:'bool'},
+    {id:'ritual',label:'Rituale',kind:'bool'},
+    {id:'desc',label:'Descrizione',kind:'textarea',full:true,clean:true},
+    {id:'higher',label:'Ai livelli superiori',kind:'textarea',full:true,clean:true,small:true}]},
+  species:{label:'Specie',cat:'races',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'es. Goliath'},
+    {id:'ctype',label:'Tipo di creatura',kind:'text',ph:'Humanoid'},
+    {id:'size',label:'Taglia',kind:'text',ph:'Medium'},
+    {id:'speed',label:'Velocità',kind:'text',ph:'9 meters'},
+    {id:'desc',label:'Introduzione',kind:'textarea',full:true,clean:true,small:true},
+    {id:'feats',label:'Tratti',kind:'rep',full:true,nolevel:true}]},
+  free:{label:'Nota libera',cat:'misc',fields:[
+    {id:'name',label:'Nome',kind:'text',ph:'Titolo della nota'},
+    {id:'folder',label:'Cartella nel vault',kind:'text',ph:'Dm Rules/…'},
+    {id:'tags',label:'Tag',kind:'text',ph:'es. regola, combattimento',full:true},
+    {id:'desc',label:'Testo',kind:'textarea',full:true,clean:true}]},
+};
+
+const EXAMPLE={type:'feat',data:{name:'Alert',type:'Origin Feat',pre:'',rep:false,
+  desc:'You gain the following benefits.\n\n**Initiative Proficiency.** When you roll Initiative, you can add your Proficiency Bonus to the roll.\n\n**Initiative Swap.** Immediately after you roll Initiative, you can swap your Initiative with the Initiative of one willing ally in the same combat. You can\'t make this swap if you or the ally has the Incapacitated condition.'}};
+
+/* ------------------------------------------------------------ state */
+const LS='forgia_epsilon_v1';
+let S={type:'feat',drafts:{},queue:[],editing:null,isExample:false};
+try{const raw=localStorage.getItem(LS); if(raw) S=Object.assign(S,JSON.parse(raw));}catch(e){}
+if(!Object.keys(S.drafts).length && !S.queue.length){ S.type=EXAMPLE.type; S.drafts[EXAMPLE.type]=structuredClone(EXAMPLE.data); S.isExample=true; }
+function persist(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}}
+function draft(){ if(!S.drafts[S.type]) S.drafts[S.type]=blank(S.type); return S.drafts[S.type]; }
+function blank(t){const d={}; TYPES[t].fields.forEach(f=>{d[f.id]=f.kind==='checks'||f.kind==='rep'?[]:f.kind==='bool'?false:f.kind==='select'?f.opts[0]:'';}); return d;}
+
+/* ------------------------------------------------------------ text helpers */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const safe=s=>String(s||'').replace(/[\\/:*?"<>|#^[\]]/g,'-').replace(/\s+/g,' ').trim();
+const tag=s=>'#'+String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+function fmtM(v){v=Math.round(v*10)/10; return Number.isInteger(v)?String(v):String(v).replace('.',',');}
+function toMeters(t){
+  t=t.replace(/(\d[\d,]*)-(?:foot|feet)\b/g,(m,n)=>fmtM(parseInt(n.replace(/,/g,''))*0.3)+'-meter');
+  return t.replace(/(\d[\d,]*)\s+(?:feet|foot|ft\.?)(?=[\s.,;:)\]]|$)/g,(m,n)=>fmtM(parseInt(n.replace(/,/g,''))*0.3)+' meters');
+}
+/* Reflow text pasted from a PDF: fix hyphen breaks, join wrapped lines, bullets, bold inline headers */
+function cleanPaste(t,{meters=true,bold=true}={}){
+  t=t.replace(/\r/g,'').replace(/[­]/g,'').replace(/[“”]/g,'"').replace(/[‘’]/g,"'");
+  t=t.replace(/(\w)-\n(\w)/g,'$1$2');
+  const paras=t.split(/\n\s*\n/).map(p=>{
+    const lines=p.split('\n').map(l=>l.trim()).filter(Boolean);
+    const out=[];
+    lines.forEach(l=>{
+      l=l.replace(/^[•●▪◦]\s*/,'- ');
+      const isList=/^(- |\* |\d+\.\s)/.test(l);
+      const isHead=bold && /^(?:[A-Z][\w'’()-]*\s?){1,5}\.\s/.test(l) && out.length;
+      if(!out.length||isList||isHead||/^(-|\*|\d+\.)\s/.test(out[out.length-1])&&isList) out.push(l);
+      else out[out.length-1]+=' '+l;
+    });
+    return out.join('\n');
+  });
+  t=paras.join('\n\n');
+  if(bold) t=t.replace(/(^|\n)(- )?([A-Z][\w'’()+-]*(?:\s(?:[A-Z0-9][\w'’()+-]*|of|the|and|a|an|to|in|on|for|with|or|at|by|your)){0,5})\.\s(?=[A-Z])/g,(m,a,b2,h)=>/^\*\*/.test(h)?m:a+(b2||'')+'**'+h.trim()+'.** ');
+  t=t.replace(/\n(?!\n)(?!- |\* |\d+\. )/g,'\n\n').replace(/\n{3,}/g,'\n\n');
+  return meters?toMeters(t).trim():t.trim();
+}
+const para=t=>String(t||'').trim();
+const lvlLabel=l=>l==='Cantrip'?'Cantrip':(ORD[l]||l+'th')+'-level';
+
+/* ------------------------------------------------------------ builders: markdown + path + site entry */
+function build(type,d){
+  const n=safe(d.name)||'Senza nome';
+  let path='',md='',entry={name:d.name||n,category:TYPES[type].cat,subcategory:'',fields:{},body:para(d.desc),tags:[]};
+  if(type==='class'){
+    path=`Dm Rules/Classi/${n}/${n}.md`;
+    const fs=d.feats.filter(f=>f.name||f.text);
+    const byL={}; fs.forEach(f=>{(byL[f.level]=byL[f.level]||[]).push(f);});
+    const rows=Array.from({length:20},(_,i)=>{const L=i+1;return `| ${L} | +${2+Math.floor(i/4)} | ${(byL[L]||[]).map(f=>f.name).join(', ')||'—'} |`;});
+    md=`**Primary Ability:** ${d.primary}\n**Hit Die:** ${d.hd}\n**Saving Throws:** ${d.saves}\n**Skills:** ${d.skills}\n**Weapon Proficiencies:** ${d.weapons}\n**Tool Proficiencies:** ${d.tools||'None'}\n**Armor Training:** ${d.armor}\n`+
+       (d.equip?`**Starting Equipment:**\n${para(d.equip)}\n`:'')+`\n${para(d.desc)}\n\n# ${n} Features\n\n| Level | Prof. Bonus | Features |\n|---|---|---|\n${rows.join('\n')}\n\n`+
+       Object.keys(byL).sort((a,b)=>a-b).map(L=>`## Level ${L}\n\n`+byL[L].map(f=>`### ${f.name}\n${para(f.text)}`).join('\n\n')).join('\n\n')+
+       (d.multi?`\n\n## Multiclassing\n${para(d.multi)}`:'')+`\n\n**Tags:** #class ${tag(n)}`;
+    entry.subcategory='Classe 5e 2024'; entry.fields={'Caratteristica primaria':d.primary,'Dado Vita':d.hd,'Tiri salvezza':d.saves,'Abilità':d.skills,Armi:d.weapons,Armature:d.armor};
+    entry.body=para(d.desc); entry.tags=['class',n.toLowerCase()];
+  }
+  if(type==='feat'){
+    path=`Dm Rules/Feats/${n}.md`;
+    md=`**Type:** ${d.type}\n**Prerequisite:** ${d.pre||'—'}\n**Repeatable:** ${d.rep?'Yes':'No'}\n\n**Description:**\n${para(d.desc)}\n\n**Tags:** #feat ${tag(d.type.replace(' Feat',''))}`;
+    entry.subcategory=d.type; entry.fields={Tipo:d.type,Prerequisito:d.pre||'—'}; if(d.rep) entry.fields.Ripetibile='Sì'; entry.tags=['feat'];
+  }
+  if(type==='background'){
+    path=`Dm Rules/Backgrounds/${n}.md`;
+    md=`**Ability Scores:** ${d.abil.join(', ')}\n**Feat:** ${d.feat?'[['+safe(d.feat)+']]':'—'}\n**Skill Proficiencies:** ${d.skills.join(', ')}\n**Tool Proficiency:** ${d.tool||'—'}\n**Equipment:** ${d.equip||'—'}\n\n`+(d.desc?`**Description:**\n${para(d.desc)}\n\n`:'')+`**Tags:** #background`;
+    entry.subcategory='Background'; entry.fields={Caratteristiche:d.abil.join(', '),Talento:d.feat,'Abilità':d.skills.join(', '),Strumenti:d.tool,Equipaggiamento:d.equip}; entry.tags=['background'];
+  }
+  if(type==='subclass'){
+    path=`Dm Rules/Classi/${d.cls}/${n}.md`;
+    const fs=d.feats.filter(f=>f.name||f.text);
+    md=`**Class:** [[${d.cls}]]\n**Summary:** ${d.summary||''}\n\n${para(d.desc)}\n\n`+fs.map(f=>`## Level ${f.level}: ${f.name}\n${para(f.text)}`).join('\n\n')+`\n\n**Tags:** #subclass ${tag(d.cls)}`;
+    entry.subcategory=`${d.cls} — Sottoclasse`; entry.fields={Classe:d.cls,Motto:d.summary};
+    entry.body=[para(d.desc),...fs.map(f=>`Level ${f.level} — ${f.name}\n${para(f.text)}`)].filter(Boolean).join('\n\n'); entry.tags=['subclass',d.cls.toLowerCase()];
+  }
+  if(type==='feature'){
+    const folder=d.sub?`${d.cls}/${safe(d.sub)}`:d.cls;
+    path=`Dm Rules/Classi/${folder}/${n}.md`;
+    md=`**Class:** [[${d.cls}]]\n`+(d.sub?`**Subclass:** [[${safe(d.sub)}]]\n`:'')+`**Level:** ${d.lvl}\n\n**Description:**\n${para(d.desc)}\n\n**Tags:** #class-feature ${tag(d.cls)}`+(d.sub?' '+tag(d.sub):'');
+    entry.name=`${d.name||n} (${d.sub||d.cls} ${d.lvl})`; entry.subcategory=`${d.cls} — Privilegi`; entry.fields={Classe:d.cls,Livello:d.lvl}; if(d.sub) entry.fields.Sottoclasse=d.sub; entry.tags=['class-feature',d.cls.toLowerCase()];
+  }
+  if(type==='spell'){
+    const folder=d.lvl==='Cantrip'?'Cantrip':'Level '+d.lvl, L=lvlLabel(d.lvl);
+    path=`Dm Rules/Spells 5e 2024/${folder}/${n}.md`;
+    const comp=d.comp.join(', ')+(d.comp.includes('M')&&d.mat?` (${d.mat})`:'');
+    let dur=d.dur||'';
+    if(d.conc && !/^concentration/i.test(dur)) dur='Concentration, '+(/^up to/i.test(dur)?dur.charAt(0).toLowerCase()+dur.slice(1):'up to '+dur.charAt(0).toLowerCase()+dur.slice(1));
+    const tags=[tag(L),tag(d.school),d.conc?'#concentration':'',d.ritual?'#ritual':'',...d.classes.map(tag)].filter(Boolean).join(' ');
+    md=`**Level:** ${L}\n**School:** ${d.school}\n**Class:** ${d.classes.join(', ')}\n\n**Casting Time:** ${d.cast}\n**Range:** ${d.range}\n**Components:** ${comp}\n**Duration:** ${dur}\n**Ritual:** ${d.ritual?'Yes':'No'}\n\n**Description:**\n${para(d.desc)}\n\n`+(d.higher?`**At Higher Levels:**\n${para(d.higher)}\n\n`:'')+`**Tags:** ${tags}`;
+    entry.subcategory=folder; entry.fields={Level:L,School:d.school,'Casting Time':d.cast,Range:d.range,Components:comp,Duration:dur};
+    entry.body=para(d.desc)+(d.higher?'\n\nAt Higher Levels: '+para(d.higher):''); entry.tags=[d.school.toLowerCase(),...d.classes.map(c=>c.toLowerCase())].concat(d.conc?['concentration']:[]);
+  }
+  if(type==='species'){
+    path=`Dm Rules/Razze/${n}.md`;
+    const tr=d.feats.filter(f=>f.name||f.text);
+    md=`**Creature Type:** ${d.ctype}\n**Size:** ${d.size}\n**Speed:** ${d.speed}\n\n`+(d.desc?para(d.desc)+'\n\n':'')+`## Traits\n\n`+tr.map(f=>`**${f.name}.** ${para(f.text)}`).join('\n\n')+`\n\n**Tags:** #species`;
+    entry.fields={Tipo:d.ctype,Taglia:d.size,'Velocità':d.speed};
+    entry.body=[para(d.desc),...tr.map(f=>`${f.name}. ${para(f.text)}`)].filter(Boolean).join('\n\n'); entry.tags=['species'];
+  }
+  if(type==='free'){
+    const folder=(d.folder||'Dm Rules').replace(/^\/+|\/+$/g,'');
+    path=`${folder}/${n}.md`;
+    const tags=String(d.tags||'').split(',').map(s=>s.trim()).filter(Boolean);
+    md=para(d.desc)+(tags.length?`\n\n**Tags:** ${tags.map(tag).join(' ')}`:'');
+    entry.subcategory=folder.split('/').pop(); entry.tags=tags.map(s=>s.toLowerCase());
+  }
+  md=md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
+  const scope=type==='class'?n:(d.cls||'');
+  md=linkify(md,{self:path.replace(/\.md$/,''),selfName:d.name||n,cls:scope});
+  entry.body=unlink(entry.body);
+  return {path,md,entry,name:d.name||n};
+}
+
+/* ------------------------------------------------------------ automatic links */
+const VAULT_INDEX_DEFAULT={"weapons":["Ammunition List","Arrow","Battleaxe","Blowgun","Blunderbuss","Bo Staff","Bolt","Brass Knuckles","Bullet","Caestus","Canesword","Club","Cutlass","Dagger","Dart","Flail","Greataxe","Greatclub","Greatsword","Halberd","Hammer","Hand Crossbow","Handaxe","Heavy Crossbow","Improvised","Javelin","Katana","Katar","Light Crossbow","Longbow","Longsword","Lucerne","Mace","Maul","Minié","Morningstar","Musket","Needle","Pike","Pistol","Quarterstaff","Rapier","Revolver","Scimitar","Scythe","Shortbow","Shortsword","Sickle","Sling","Spear","Stiletto","Throwing Knife","Trident","Warhammer","Whip","Zweihander"],"rules":["Acid-Fused","Armor Break","Bludgeoning-Smashed","Cold-Frozen","Concoction Potions","Contact","Critical Scars","Cyberpsicosi","Desperate Manouvers","Fire-Burnt","Ingested","Inhaled","Injury","Lightning-Strucked","Long Rest","Necrotic-Whitered","Piercing-Pierced","Poison-Diseased","Programmi","Psychic-Concossion","Radiant-Glowing","Scrap","Short Rest","Slashing-Wounded","Thunder-Bursted","Veleni","Weak"],"props":["Ammunition","Brutal","Chill","Cleave","Double","Explosive","Fine","Finesse","Flexible","Flimsy","Graze","Handling","Heavy","Hidden","Light","Loading","Misfire","Nick","Noisy","Padding","Parry","Push","Range","Reach","Reliable","Reload","Riposte","Sap","Slash","Slow","Sturdy","Thrown","Topple","Two-Handed","Versatile","Vex","Warm"],"armor":["Bladed","Brawler's Armor","Breastplate","Buckler","Chain Mail","Chain Shirt","Common Robe","Duelist's Vest","Half Plate","Hide Armor","Leather Armor","Noble Clothes","Padded Leather","Plate Armor","Reinforced","Ring Mail","Round","Scale Mail","Scholar's Uniform","Spiked","Splint Armor","Steel","Studded Leather","Tower","Wooden","Working Clothes"],"classes":["Ability Score Improvement","Action Surge","Aureo","Corpo","CyberPsycho","Cybertech","Dotter","Epic Boon","Extra Attack","Fighter","Fighter Subclass","Fighting Style","Gunslinger","Indomitable","Machinist","Merc","Monk (CA)","Netrunner","Nomad","Reporter","Rocker","Scavenger","Second Wind","Seraphim","Studied Attacks","Tactical Master","Tactical Mind","Tactical Shift","Three Extra Attacks","Two Extra Attacks","Weapon Mastery"],"conditions":["Bleeding-Sanguinamento","Blinded-Accecato","Bloodied-Morente","Burning-A Fuoco","Charmed-Affascinato","Deafened-Assordato","Dehydration-Disidratato","Exhaustion-Esaustione","Falling-Caduta","Freezing-Congelamento","Frightened-Spaventato","Grappled-Afferrato","Incapacitated-Incapacitato","Invisible-Invisibile","Malnutrition-Malnutrito","Melting-Scioglimento","Paralyzed-Paralizzato","Petrified-Pietrificato","Poisoned-Avvelenato","Prone-Prono","Restrained-Trattenuto","Stunned-Stordito","Suffocation-Soffocato","Unconscious-Privo Di Sensi"],"items":["Budino Comune","Budino Maggiore","Budino Minore","Budino Supremo","Cura Comune","Cura Maggiore","Cura Minore","Cura Suprema","Elisir Comune","Elisir Maggiore","Elisir Minore","Elisir Supremo"],"spells":["Acid Splash","Aegis","Aganazzar's Scorcher","Aid","Alarm","Alter Self","Alter Spell","Animal Friendship","Animal Messenger","Animal Shapes","Animate Dead","Animate Objects","Antilife Shell","Antimagic Field","Antipathy Sympathy","Arcane Eye","Arcane Gate","Arcane Lock","Arcane Vigor","Armor of Agathys","Arms of Hadar","Astral Projection","Augury","Aura of Life","Aura of Purity","Aura of Vitality","Awaken","Bane","Banishing Smite","Banishment","Barkskin","Battle Ballad","Beacon of Hope","Beast Sense","Befuddlement","Bestow Curse","Bigby's Hand","Blade Barrier","Blade Ward","Bless","Blight","Blinding Smite","Blindness Deafness","Blink","Blur","Breath of Dead","Burning Hands","Call Lightning","Calm Emotions","Cassandra's Last Word","Caustic Blood","Chain Lightning","Charm Monster","Charm Person","Chill Touch","Chromatic Orb","Chronal Reaction","Circle of Death","Circle of Power","Clairvoyance","Clone","Cloud of Daggers","Cloudkill","Color Spray","Command","Commune","Commune with Nature","Compelled Duel","Comprehend Languages","Compulsion","Cone of Cold","Confusion","Conjure Animals","Conjure Barrage","Conjure Celestial","Conjure Elemental","Conjure Fey","Conjure Minor Elementals","Conjure Volley","Conjure Woodland Beings","Contact Other Plane","Contagion","Contingency","Continual Flame","Control Water","Control Weather","Cordon of Arrows","Counterspell","Create Food and Water","Create Undead","Create or Destroy Water","Creation","Crown of Madness","Crusader's Mantle","Cure Wounds","Dancing Lights","Darkness","Darkvision","Daylight","Death Grasp","Death Ward","Deja Vu","Delayed Blast Fireball","Demiplane","Destructive Wave","Detect Evil and Good","Detect Magic","Detect Poison and Disease","Detect Thoughts","Dimension Door","Disguise Object","Disguise Self","Disintegrate","Dispel Evil and Good","Dispel Magic","Dissonant Whispers","Divination","Divine Favor","Divine Smite","Divine Word","Dominate Beast","Dominate Monster","Dominate Person","Dragon's Breath","Drawmij's Instant Summons","Dream","Druidcraft","Earthquake","Edrick's Aging Hex","Edrick's Time in a Bottle","Eldritch Blast","Elemental Weapon","Elementalism","Enhance Ability","Enlarge Reduce","Ensnaring Strike","Entangle","Enthrall","Etherealness","Evard's Black Tentacles","Expeditious Retreat","Eyebite","Fabricate","Faerie Fire","False Life","Fear","Feather Fall","Feign Death","Find Familiar","Find Steed","Find Traps","Find the Path","Finger of Death","Fire Bolt","Fire Shield","Fire Spray","Fire Storm","Fireball","Flame Blade","Flame Strike","Flaming Sphere","Flesh to Stone","Fly","Fog Cloud","Forbiddance","Forcecage","Foresight","Fount of Moonlight","Freedom of Movement","Friends","Frost Fingers","G.R.I.M.'s Gravity Bow","Gaseous Form","Gate","Geas","Gentle Repose","Giant Insect","Gist","Glibness","Globe of Invulnerability","Glyph of Warding","Goodberry","Grasping Vine","Grease","Greater Invisibility","Greater Restoration","Grim's Gravity Arrow","Guardian of Faith","Guards and Wards","Guidance","Guiding Bolt","Gust of Wind","Hail of Thorns","Hallow","Hallucinatory Terrain","Halt","Harm","Haste","Heal","Healing Word","Heat Metal","Hellish Rebuke","Heroes' Feast","Heroism","Hex","Hold Monster","Hold Person","Holy Aura","Horror Vacui","Hunger of Hadar","Hunter's Mark","Hypnotic Pattern","Ice Knife","Ice Storm","Identify","Illusory Script","Image Capture","Imprisonment","Incendiary CLoud","Inflict Wounds","Inky Form","Insect Plague","Invisibility","Jallarzi's Storm of Radiance","Jump","Knock","Legend Lore","Leomund's Secret Chest","Leomund's Tiny Hut","Lesser Restoration","Levitate","Light","Lightning Arrow","Lightning Bolt","Lightning Rain","Locate Animals or Plants","Locate Creature","Locate Object","Longstrider","Mage Armor","Mage Hand","Magic Circle","Magic Jar","Magic Missile","Magic Mouth","Magic Weapon","Major Image","Mass Cure Wounds","Mass Heal","Mass Healing Word","Mass Suggestion","Maze","Meld into Stone","Melf's Acid Arrow","Memento Mori","Mending","Message","Meteor Swarm","Mind Blank","Mind Sliver","Mind Spike","Minor Illusion","Miracle Blade","Mirage Arcane","Mirror Image","Mislead","Misty Step","Modify Memory","Moonbeam","Mordenkainen's Faithful Hound","Mordenkainen's Magnificent Mansion","Mordenkainen's Private Sanctum","Mordenkainen's Sword","Move Earth","Nondetection","Nystul's Magic Aura","Otiluke's Freezing Sphere","Otiluke's Resilient Sphere","Otto's Irresistible Dance","Pass without Trace","Passwall","Phantasmal Force","Phantasmal Killer","Phantom Steed","Planar Ally","Planar Binding","Plane Shift","Plant Growth","Poison Spray","Polymorph","Poppin's Bag of Sweets","Power Word Fortify","Power Word Heal","Power Word Kill","Power Word Stun","Prayer of Healing","Prestidigitation","Prismatic Spray","Prismatic Wall","Produce Flame","Programmed Illusion","Project Image","Protection from Energy","Protection from Evil and Good","Protection from Poison","Purge","Purify Food and Drink","Raise Dead","Rary's Telepathic Bond","Ray of Enfeeblement","Ray of Frost","Ray of Sickness","Regenerate","Reincarnate","Remove Curse","Resistance","Resurrection","Reverse Gravity","Revivify","Rope Trick","Sacred Flame","Salem's Lunar Awakening","Salem's Spiritual Reminiscence","Sanctuary","Scorching Ray","Scrying","Searing Smite","See Invisibility","Seeming","Sending","Sequester","Shapechange","Shatter","Shield","Shield of Faith","Shillelagh","Shining Smite","Shocking Grasp","Silence","Silent Image","Simulacrum","Sleep","Sleet Storm","Slow","Sorcerous Burst","Spare the Dying","Speak With Paintings","Speak with Animals","Speak with Dead","Speak with Plants","Spider Climb","Spike Growth","Spirit Guardians","Spiritual Weapon","Staggering Smite","Starry Wisp","Steel Wind Strike","Stinking Cloud","Stone Shape","Stoneskin","Storm of Vengeance","Suggestion","Summon Aberration","Summon Beast","Summon Celestial","Summon Construct","Summon Dragon","Summon Elemental","Summon Fey","Summon Fiend","Summon Undead","Sunbeam","Sunburst","Swift Quiver","Symbol","Synaptic Static","Tasha's Bubbling Cauldron","Tasha's Hideous Laughter","Telekinesis","Telepathy","Teleport","Teleportation Circle","Tenser's Floating Disk","Thaumaturgy","Thorn Whip","Thunderclap","Thunderous Smite","Thunderwave","Time Capsule","Time Step","Time Stop","Tireless","Toll the Dead","Tongues","Transport via Plants","Tree Stride","True Polymorph","True Resurrection","True Seeing","True Strike","Tsunami","Unseen Servant","Vampiric Touch","Vicious Mockery","Vitriolic Sphere","Wall of Fire","Wall of Force","Wall of Ice","Wall of Sand","Wall of Stone","Wall of Thorns","Warding Bond","Water Breathing","Water Walk","Web","Weird","Wind Walk","Wind Wall","Wish","Witch Bolt","Word of Radiance","Word of Recall","Wrathful Smite","Yolande's Regal Presence","Zone of Truth"],"creatures":["Bat","Bestial Spirit","Cat","Fey Spirit","Frog","Hawk","Lizard","Octopus","Otherworldly Steed","Owl","Rat","Raven","Riding Horse","Skeleton","Spider","Undead Spirit","Weasel","Zombie"]};
+const LINK_CATS={conditions:'Condizioni',spells:'Incantesimi',weapons:'Armi',armor:'Armature',props:'Proprietà e Mastery',rules:'Regole',items:'Pozioni',classes:'Classi e privilegi',created:'Note create qui',creatures:'Creature'};
+const DEFAULT_STOP=['Light','Heavy','Range','Hidden','Fine','Double','Slash','Round','Steel','Wooden','Tower','Spiked','Bladed','Reinforced','Improvised','Hammer','Needle','Contact','Injury','Ingested','Inhaled','Scrap','Programmi','Resistance','Darkvision','Fear','Silence','Sleep','Harm','Heal','Halt','Purge','Command','Message','Sending','Symbol','Creation','Dream','Gate','Maze','Jump','Shield','Slow','Web','Weird','Wish','Friends','Divination','Confusion','Teleport','Telepathy','Fly','Haste','Identify','Knock','Mending','Sanctuary','Guidance','Aid','Bless','Hex','Blink','Blur','Daylight','Alarm','Bane','Ammunition','Weapon Mastery','Ability Score Improvement','Epic Boon','Spellcasting','Fighting Style','Improvised'];
+const LK_DEFAULT={on:true,first:true,cats:{conditions:true,spells:true,weapons:true,armor:true,props:true,rules:true,items:true,classes:true,created:true,creatures:false},stop:DEFAULT_STOP.join('\n'),custom:'',vault:null,learned:[]};
+if(!S.links) S.links=structuredClone(LK_DEFAULT);
+S.links=Object.assign(structuredClone(LK_DEFAULT),S.links); S.links.cats=Object.assign({},LK_DEFAULT.cats,S.links.cats);
+const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const PLURAL_CATS=new Set(['weapons','armor','creatures']);
+let LK_CACHE=null;
+function lkInvalidate(){LK_CACHE=null;}
+/* one entry per term: {term,target,cat,cls?}; cls = only link inside notes of that class */
+function lkEntries(){
+  const L=S.links, list=[], seen={};
+  const vault=L.vault||VAULT_INDEX_DEFAULT;
+  Object.entries(vault).forEach(([cat,names])=>names.forEach(nm=>{
+    if(/\(CA\)$/.test(nm)) return;
+    let term=nm; if(cat==='conditions') term=nm.split('-')[0].trim();
+    (seen[term]=seen[term]||[]).push({term,target:nm,cat});
+  }));
+  Object.values(seen).forEach(arr=>{ const t=new Set(arr.map(a=>a.target)); if(t.size===1) list.push(arr[0]); }); // drop names used by two different notes (e.g. Slow)
+  (L.learned||[]).forEach(e=>list.push(e));
+  String(L.custom||'').split('\n').forEach(line=>{const m=line.match(/^\s*(.+?)\s*=\s*(.+?)\s*$/); if(m) list.push({term:m[1],target:m[2],cat:'custom'});});
+  return list;
+}
+function lkCompiled(){
+  if(LK_CACHE) return LK_CACHE;
+  const L=S.links, stop=new Set(String(L.stop||'').split('\n').map(x=>x.trim()).filter(Boolean));
+  const map=new Map();
+  lkEntries().forEach(e=>{
+    if(e.cat!=='custom' && !L.cats[e.cat]) return;
+    if(stop.has(e.term) || e.term.length<3) return;
+    const k=e.term; if(!map.has(k)) map.set(k,[]); map.get(k).push(e);
+  });
+  const terms=[...map.keys()].sort((a,b)=>b.length-a.length);
+  const alt=terms.map(t=>reEsc(t)+(map.get(t).some(e=>PLURAL_CATS.has(e.cat))?'(?:e?s)?':'')).join('|');
+  LK_CACHE={map,re:terms.length?new RegExp('(?<![\\w\\[|#/])('+alt+')(?![\\w\\]])','g'):null,count:terms.length};
+  return LK_CACHE;
+}
+function linkTarget(arr,ctx){
+  // class-scoped entries first (features of the same class), then global ones
+  const scoped=arr.filter(e=>e.cls); const hit=scoped.find(e=>e.cls===ctx.cls);
+  if(hit) return hit; const glob=arr.filter(e=>!e.cls); return glob.length===1?glob[0]:(glob[glob.length-1]||null);
+}
+function linkify(md,ctx){
+  const L=S.links; if(!L.on) return md;
+  const C=lkCompiled(); if(!C.re) return md;
+  const used=new Set();
+  return md.split('\n').map(line=>{
+    if(/^#|^\*\*(Tags|Class|Subclass):\*\*/.test(line)) return line;
+    const inTable=/^\|/.test(line), bar=inTable?'\\|':'|';
+    return line.split(/(\[\[[^\]]*\]\]|\*\*[^*]+\*\*|`[^`]*`|https?:\/\/\S+)/).map((seg,i)=>{
+      if(i%2) return seg;
+      return seg.replace(C.re,(m,_g,off,str)=>{
+        let base=m; let arr=C.map.get(base);
+        if(!arr){ base=m.replace(/e?s$/,''); arr=C.map.get(base); if(!arr) base=m.slice(0,-1), arr=C.map.get(base); }
+        if(!arr) return m;
+        const e=linkTarget(arr,ctx); if(!e) return m;
+        const tgt=e.target;
+        if(tgt===ctx.self||tgt.split('#')[0]===ctx.self||base===ctx.selfName) return m;
+        if(!base.includes(' ') && ['weapons','armor','props','creatures','rules','items'].includes(e.cat)){
+          const before=str.slice(0,off); if(/(^|[.!?:]\s+|^-\s+)$/.test(before)) return m; // single word at sentence start: probably not the game term
+        }
+        const key=tgt; if(L.first&&used.has(key)) return m; used.add(key);
+        return tgt===m?`[[${tgt}]]`:`[[${tgt}${bar}${m}]]`;
+      });
+    }).join('');
+  }).join('\n');
+}
+const unlink=t=>String(t||'').replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g,'$2').replace(/\[\[([^\]]+)\]\]/g,(m,a)=>a.split('#').pop().split('/').pop());
+/* remember notes made here so later notes link to them */
+function learn(item){
+  const d=item.data, L=S.links, add=e=>{L.learned=L.learned.filter(x=>!(x.term===e.term&&(x.cls||'')===(e.cls||''))); L.learned.push(e);};
+  const tgt=item.path.replace(/\.md$/,'');
+  const name=d.name; if(!name) return;
+  if(item.type==='feature'){ add({term:d.name,target:tgt,cat:'created',cls:d.cls}); }
+  else add({term:name,target:tgt.split('/').pop()===name?name:tgt,cat:'created'});
+  if(item.type==='class') (d.feats||[]).forEach(f=>f.name&&!L.learned.some(x=>x.term===f.name&&x.cls===name&&!x.target.includes('#'))&&add({term:f.name,target:`${tgt}#${f.name}`,cat:'created',cls:name}));
+  if(item.type==='subclass') (d.feats||[]).forEach(f=>f.name&&add({term:f.name,target:`${tgt}#Level ${f.level}: ${f.name}`,cat:'created',cls:d.cls}));
+  lkInvalidate();
+}
+function renderLinks(){
+  const L=S.links;
+  $('linkCats').innerHTML=Object.entries(LINK_CATS).map(([k,v])=>`<label><input type="checkbox" data-lc="${k}" ${L.cats[k]?'checked':''}> ${v}</label>`).join('');
+  $('lkOn').checked=L.on; $('lkFirst').checked=L.first; $('lkStop').value=L.stop; $('lkCustom').value=L.custom;
+  const nV=Object.values(L.vault||VAULT_INDEX_DEFAULT).reduce((a,b)=>a+b.length,0);
+  $('linkCount').textContent=`${nV} note del vault + ${L.learned.length} create qui`+(L.vault?'':' (elenco del 7 novembre)');
+  $('linkCats').querySelectorAll('[data-lc]').forEach(c=>c.onchange=()=>{L.cats[c.dataset.lc]=c.checked;lkChanged();});
+}
+function lkChanged(){lkInvalidate();persist();renderPreview();}
+$('lkOn').onchange=e=>{S.links.on=e.target.checked;lkChanged();};
+$('lkFirst').onchange=e=>{S.links.first=e.target.checked;lkChanged();};
+$('lkStop').oninput=e=>{S.links.stop=e.target.value;lkChanged();};
+$('lkCustom').oninput=e=>{S.links.custom=e.target.value;lkChanged();};
+$('lkForget').onclick=()=>{S.links.learned=[];lkChanged();renderLinks();toast('Elenco delle note create qui svuotato.');};
+$('lkFolder').onchange=e=>{
+  const FOLDER_CAT={'Spells 5e 2024':'spells','Weapons':'weapons','Armor':'armor','Condizioni':'conditions','Weapon Properties':'props','Mastery Properties':'props','Armor Properties':'props','Stat Block':'creatures','Classes 5e 2024':'classes','Classi':'classes','Pozioni':'items','Class Adaptation':'classes','Critical Scars':'rules','Ammunition':'weapons','Veleno - Meccaniche':'rules','Razze':'classes','Feats':'classes','Backgrounds':'classes'};
+  const out={};
+  [...e.target.files].forEach(f=>{
+    const p=(f.webkitRelativePath||f.name).split('/'); if(!/\.md$/i.test(p[p.length-1])) return;
+    const i=p.indexOf('Dm Rules'); if(i<0) return;
+    const rest=p.slice(i+1), name=rest[rest.length-1].replace(/\.md$/i,'');
+    if(/^(Session Recap|Templates)$/.test(rest[0])||name.startsWith('Elenco')||/ Spells$/.test(name)) return;
+    const cat=rest.length>1?(FOLDER_CAT[rest[0]]||'rules'):'rules';
+    (out[cat]=out[cat]||[]).push(name);
+  });
+  const n=Object.values(out).reduce((a,b)=>a+b.length,0);
+  if(!n){toast('Non ho trovato note dentro «Dm Rules»: scegli la cartella Epsilon_System.');return;}
+  S.links.vault=out; lkChanged(); renderLinks(); toast(`Elenco aggiornato: ${n} note.`); e.target.value='';
+};
+
+/* ------------------------------------------------------------ render */
+function renderRail(){
+  $('rail').innerHTML=Object.entries(TYPES).map(([k,t])=>`<button type="button" data-t="${k}" aria-pressed="${k===S.type}">${t.label}</button>`).join('');
+  $('rail').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.type=b.dataset.t;S.editing=null;S.isExample=false;persist();renderAll();});
+}
+function renderForm(){
+  const d=draft(); const f=$('form');
+  f.innerHTML=TYPES[S.type].fields.map(fd=>{
+    const id='f_'+S.type+'_'+fd.id, cls='fld'+(fd.full?' full':'');
+    if(fd.kind==='text') return `<div class="${cls}"><label class="lb" for="${id}">${fd.label}</label><input type="text" id="${id}" data-f="${fd.id}" value="${esc(d[fd.id])}" placeholder="${esc(fd.ph||'')}"></div>`;
+    if(fd.kind==='select') return `<div class="${cls}"><label class="lb" for="${id}">${fd.label}</label><select id="${id}" data-f="${fd.id}">${fd.opts.map(o=>`<option ${o===d[fd.id]?'selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
+    if(fd.kind==='bool') return `<div class="${cls}"><span class="lb">${fd.label}</span><div class="checks"><label><input type="checkbox" id="${id}" data-f="${fd.id}" ${d[fd.id]?'checked':''}> Sì</label></div></div>`;
+    if(fd.kind==='checks') return `<div class="${cls}"><span class="lb">${fd.label}</span><div class="checks">${fd.opts.map((o,i)=>`<label><input type="checkbox" id="${id}_${i}" data-c="${fd.id}" value="${esc(o)}" ${d[fd.id].includes(o)?'checked':''}> ${esc(o)}</label>`).join('')}</div></div>`;
+    if(fd.kind==='textarea') return `<div class="${cls}"><label class="lb" for="${id}">${fd.label}</label><textarea id="${id}" data-f="${fd.id}" style="${fd.small?'min-height:80px':''}" placeholder="${CREDIT_HINT}">${esc(d[fd.id])}</textarea>
+      <div class="tools"><button class="btn small" type="button" data-clean="${fd.id}">Pulisci testo incollato</button>
+      <label class="hint"><input type="checkbox" data-opt="meters" checked> piedi → metri</label>
+      <label class="hint"><input type="checkbox" data-opt="bold" checked> grassetto sui sottotitoli</label></div></div>`;
+    if(fd.kind==='rep') return `<div class="${cls}"><span class="lb">${fd.label}</span><div class="rep" data-rep="${fd.id}">${
+      d[fd.id].map((it,i)=>`<div class="rep-item">
+        ${fd.nolevel?'':`<select aria-label="Livello" data-ri="${i}" data-rk="level">${Array.from({length:20},(_,k)=>`<option ${String(k+1)===String(it.level)?'selected':''}>${k+1}</option>`).join('')}</select>`}
+        <input type="text" aria-label="Nome" placeholder="Nome" data-ri="${i}" data-rk="name" value="${esc(it.name)}" style="${fd.nolevel?'grid-column:1/3':''}">
+        <button class="btn small" type="button" data-rdel="${i}" aria-label="Rimuovi">Rimuovi</button>
+        <textarea aria-label="Testo" placeholder="${CREDIT_HINT}" data-ri="${i}" data-rk="text">${esc(it.text)}</textarea>
+        <div class="tools" style="grid-column:1/-1"><button class="btn small" type="button" data-rclean="${i}">Pulisci testo incollato</button></div>
+      </div>`).join('')}
+      <div class="tools"><button class="btn small" type="button" data-radd="${fd.id}">+ Aggiungi ${fd.nolevel?'tratto':'privilegio'}</button></div></div></div>`;
+  }).join('');
+  const repKey=(TYPES[S.type].fields.find(x=>x.kind==='rep')||{}).id;
+  f.querySelectorAll('[data-f]').forEach(el=>el.addEventListener(el.type==='checkbox'?'change':'input',()=>{d[el.dataset.f]=el.type==='checkbox'?el.checked:el.value;changed();}));
+  f.querySelectorAll('[data-c]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.c;d[k]=[...f.querySelectorAll(`[data-c="${k}"]:checked`)].map(x=>x.value);changed();}));
+  f.querySelectorAll('[data-clean]').forEach(b=>b.onclick=()=>{
+    const box=b.closest('.fld'), opt=k=>box.querySelector(`[data-opt="${k}"]`).checked, k=b.dataset.clean;
+    d[k]=cleanPaste(d[k]||'',{meters:opt('meters'),bold:opt('bold')}); box.querySelector('textarea').value=d[k]; changed(); toast('Testo pulito.');
+  });
+  f.querySelectorAll('[data-ri]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>{d[repKey][el.dataset.ri][el.dataset.rk]=el.value;changed();}));
+  f.querySelectorAll('[data-rclean]').forEach(b=>b.onclick=()=>{const it=d[repKey][b.dataset.rclean]; it.text=cleanPaste(it.text||''); renderForm(); changed(); toast('Testo pulito.');});
+  f.querySelectorAll('[data-radd]').forEach(b=>b.onclick=()=>{const last=d[repKey][d[repKey].length-1]; d[repKey].push({level:last?last.level:'3',name:'',text:''}); renderForm(); changed();});
+  f.querySelectorAll('[data-rdel]').forEach(b=>b.onclick=()=>{d[repKey].splice(+b.dataset.rdel,1); renderForm(); changed();});
+  $('exampleTag').hidden=!S.isExample;
+}
+let cur=null;
+function renderPreview(){
+  cur=build(S.type,draft());
+  const i=cur.path.lastIndexOf('/');
+  $('path').innerHTML=esc(cur.path.slice(0,i+1))+'<b>'+esc(cur.path.slice(i+1))+'</b>';
+  $('preview').textContent=cur.md;
+  $('btnQueue').textContent=S.editing?'Aggiorna nella lista':'Aggiungi alla lista';
+}
+function renderQueue(){
+  $('count').textContent=S.queue.length;
+  $('queueEmpty').hidden=S.queue.length>0;
+  $('queue').innerHTML=S.queue.map((q,i)=>`<tr><td>${esc(q.name)}</td><td><span class="pill">${esc(TYPES[q.type].label)}</span></td><td class="path">${esc(q.path)}</td>
+    <td style="white-space:nowrap"><button class="btn small" type="button" data-edit="${i}">Modifica</button> <button class="btn small" type="button" data-del="${i}">Togli</button></td></tr>`).join('');
+  $('queue').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{const q=S.queue[+b.dataset.edit]; S.type=q.type; S.drafts[q.type]=structuredClone(q.data); S.editing=q.id; S.isExample=false; persist(); renderAll(); window.scrollTo({top:0,behavior:'smooth'});});
+  $('queue').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const q=S.queue.splice(+b.dataset.del,1)[0]; if(S.editing===q.id)S.editing=null; persist(); renderQueue(); renderPreview();});
+  ['btnZip','btnJson','btnClear'].forEach(id=>$(id).disabled=!S.queue.length);
+}
+function renderAll(){renderLinks();renderRail();renderForm();renderPreview();renderQueue();}
+let t0;function changed(){S.isExample=false;$('exampleTag').hidden=true;renderPreview();clearTimeout(t0);t0=setTimeout(persist,300);}
+let tt;function toast(m){$('toast').textContent=m;clearTimeout(tt);tt=setTimeout(()=>$('toast').textContent='',3500);}
+
+/* ------------------------------------------------------------ actions */
+$('btnNew').onclick=()=>{S.drafts[S.type]=blank(S.type);S.editing=null;S.isExample=false;persist();renderForm();renderPreview();};
+$('btnQueue').onclick=()=>{
+  const d=draft(); if(!String(d.name||'').trim()){toast('Dai un nome alla nota prima di aggiungerla.');return;}
+  const item={id:S.editing||('n'+Date.now()),type:S.type,data:structuredClone(d),name:cur.name,path:cur.path};
+  if(S.editing){const i=S.queue.findIndex(q=>q.id===S.editing); if(i>=0)S.queue[i]=item; else S.queue.push(item); toast('Nota aggiornata nella lista.');}
+  else{const dup=S.queue.findIndex(q=>q.path===item.path); if(dup>=0)S.queue[dup]=item; else S.queue.push(item); toast(dup>=0?'Sostituita la nota con lo stesso percorso.':'Aggiunta alla lista.');}
+  learn(item); S.editing=null; S.drafts[S.type]=blank(S.type); persist(); renderForm(); renderPreview(); renderQueue(); renderLinks();
+};
+$('btnCopy').onclick=async()=>{
+  try{await navigator.clipboard.writeText(cur.md);toast('Testo copiato: incollalo in una nuova nota di Obsidian.');}
+  catch(e){const r=document.createRange();r.selectNodeContents($('preview'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Testo selezionato: premi Cmd+C per copiarlo.');}
+};
+let downloads=null;
+function plainDownload(filename,data){
+  const blob=data instanceof Blob?data:new Blob([data],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000); toast('File scaricato: '+filename);
+}
+async function save(filename,data){
+  if(!downloads){plainDownload(filename,data);return;}
+  try{await downloads.save({filename,data});toast('File pronto: '+filename);}
+  catch(e){ if(e&&e.code==='declined') toast('Download annullato.'); else if(e&&e.code==='rate_limited') toast('C’è già una richiesta aperta, riprova tra poco.'); else toast('Download non riuscito: usa «Copia testo».'); }
+}
+$('btnSaveOne').onclick=()=>save(cur.path.split('/').pop(),cur.md);
+$('btnZip').onclick=async()=>{
+  if(typeof JSZip==='undefined'){toast('Libreria zip non caricata: scarica le note una alla volta.');return;}
+  const plan=zipPlan(), z=new JSZip();
+  S.queue.forEach(q=>z.file(plan.rel(q.path),build(q.type,q.data).md));
+  z.file(`${plan.root} - regole per la scheda.json`,JSON.stringify(siteJson(),null,2));
+  const blob=await z.generateAsync({type:'blob'});
+  await save(safe(plan.root)+'.zip',blob);
+  $('zipHint').innerHTML=plan.howto;
+};
+/* zip starts at the deepest folder all notes share, so it can be dropped into the vault without replacing anything above it */
+function zipPlan(){
+  const dirs=S.queue.map(q=>q.path.split('/').slice(0,-1));
+  let common=dirs[0]||[]; dirs.forEach(d=>{let i=0; while(i<common.length&&i<d.length&&common[i]===d[i]) i++; common=common.slice(0,i);});
+  const root=common.length?common[common.length-1]:'Note Epsilon', parent=common.slice(0,-1).join('/');
+  const strip=common.length?common.slice(0,-1).join('/')+(common.length>1?'/':''):'';
+  const rel=p=>common.length?p.slice(strip.length):'Note Epsilon/'+p;
+  const where=common.length?(parent?`dentro <b>${esc(parent)}</b>`:'nella cartella principale'):'nella cartella principale';
+  const howto=`Apri lo .zip: trovi la cartella <b>${esc(root)}</b> e il file JSON. Trascina <b>${esc(root)}</b> ${where} del vault Epsilon_System. `+
+    `Se il Mac dice che esiste già, <b>non scegliere «Sostituisci»</b>: rifai il trascinamento tenendo premuto ⌥ Option e scegli «Unisci». Il JSON va caricato nella scheda con «Importa regole custom».`;
+  return {root,rel,howto};
+}
+function siteJson(){
+  const out={}; S.queue.forEach(q=>{const e=build(q.type,q.data).entry; e.id=e.category.slice(0,3)+'_forgia_'+q.id; (out[e.category]=out[e.category]||[]).push(e);});
+  return out;
+}
+$('btnJson').onclick=()=>{
+  save('epsilon-regole-custom.json',JSON.stringify(siteJson(),null,2));
+};
+let clearArmed=false;
+$('btnClear').onclick=()=>{
+  if(!clearArmed){clearArmed=true;$('btnClear').textContent='Conferma: svuota';setTimeout(()=>{clearArmed=false;$('btnClear').textContent='Svuota lista';},3000);return;}
+  S.queue=[];S.editing=null;clearArmed=false;$('btnClear').textContent='Svuota lista';persist();renderQueue();renderPreview();toast('Lista svuotata.');
+};
+
+/* ------------------------------------------------------------ "Incolla tutto": parse a whole pasted page */
+const SMALL=new Set(['of','the','and','a','an','to','in','on','for','with','or','at','by','from']);
+function titleCase(s){
+  return s.toLowerCase().split(/(\s+|-)/).map((w,i)=>(i>0&&SMALL.has(w))?w:w.replace(/^(\(?)([a-zà-ü])/,(m,p,c)=>p+c.toUpperCase())).join('')
+    .replace(/'S\b/g,"'s").replace(/’S\b/g,"’s");
+}
+const isHead=l=>l.length<=70 && /[A-Z]{3}/.test(l) && l===l.toUpperCase() && /^[A-Z0-9(]/.test(l) && !/^\*|^- /.test(l);
+/* "LEVEL 1: NAME", "1ST LEVEL: NAME", "LEVEL 1 - NAME", "1st-level: NAME" */
+const LEVEL_RE=/^(?:LEVEL\s+(\d{1,2})|(\d{1,2})(?:ST|ND|RD|TH)[\s-]+LEVEL)\s*[:.\-–—]\s*(.+)$/i;
+const levelHead=l=>{const m=l.match(LEVEL_RE); return m&&isHead(l)?{level:String(+(m[1]||m[2])),name:titleCase(m[3].trim())}:null;};
+const hasLevels=t=>t.split('\n').some(l=>levelHead(l.trim()));
+
+function prep(text){
+  return text.replace(/\r/g,'').replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'[[$1]]')
+    .split('\n').map(l=>l.trim()).filter(l=>!/^(ADVERTISEMENT|Advertisement)$/.test(l))
+    .map(l=>l.replace(/^(\*|•|●|▪)\s+/,'- '));
+}
+/* join lines into markdown: blank line between paragraphs, bullets stay together */
+function joinLines(lines,meters){
+  const out=[];
+  lines.filter(Boolean).forEach(l=>{
+    const prevList=out.length&&/^- /.test(out[out.length-1]);
+    if(out.length&&!(/^- /.test(l)&&prevList)) out.push('');
+    out.push(l);
+  });
+  let t=out.join('\n');
+  t=t.replace(/(^|\n)(- )?([A-Z][\w'’()+-]*(?:\s(?:[A-Z0-9][\w'’()+-]*|of|the|and|a|an|to|in|on|for|with|or|at|by|your)){0,5})\.\s(?=[A-Z])/g,(m,a,b,h)=>a+(b||'')+'**'+h.trim()+'.** ');
+  return meters?toMeters(t):t;
+}
+function kv(lines,key){
+  const re=new RegExp('^(?:- )?(?:\\d+\\.\\s*)?'+key+'\\s*(?:\\([^)]*\\))?\\s*:\\s*(.+)$','i');
+  for(const l of lines){const m=l.match(re); if(m) return m[1].trim();}
+  return '';
+}
+function sections(lines){
+  const secs=[{head:null,lines:[]}];
+  lines.forEach(l=>{ if(l&&isHead(l)) secs.push({head:l,lines:[]}); else secs[secs.length-1].lines.push(l); });
+  return secs;
+}
+function detect(t){
+  if(/Casting Time\s*:/i.test(t)) return 'spell';
+  if(/Hit (Dice|Die|Points)\b/i.test(t) && hasLevels(t)) return 'class';
+  if(/Ability Scores\s*:/i.test(t) && /Skill Proficienc/i.test(t)) return 'background';
+  if(/Creature Type\s*:/i.test(t)) return 'species';
+  if(hasLevels(t)) return 'subclass';
+  if(t.split('\n').filter(l=>l.trim()).slice(0,4).some(l=>/\b(Origin|General|Fighting Style|Epic Boon) Feat\b/i.test(l))) return 'feat';
+  return null;
+}
+/* collect "LEVEL N: NAME" features; other caps headings inside a feature become sub-headings */
+function collectFeatures(secs,meters){
+  const feats=[]; let curF=null;
+  secs.forEach(s=>{
+    const lh=s.head&&levelHead(s.head);
+    if(lh){ curF={level:lh.level,name:lh.name,parts:[joinLines(s.lines,meters)]}; feats.push(curF); }
+    else if(curF&&s.head){ curF.parts.push(`#### ${titleCase(s.head)}\n${joinLines(s.lines,meters)}`); }
+  });
+  return feats.map(f=>({level:f.level,name:f.name,text:f.parts.filter(Boolean).join('\n\n')}));
+}
+function introLines(lines){const i=lines.findIndex(Boolean); const out=[]; for(let k=i+1;k<lines.length;k++){ if(lines[k]&&isHead(lines[k])) break; out.push(lines[k]); } return out;}
+function firstTitle(lines){const l=lines.find(Boolean)||''; return isHead(l)?titleCase(l):l;}
+
+const PARSERS={
+  class(text,m){
+    const L=prep(text), secs=sections(L), name=firstTitle(L);
+    const d=blank('class'); d.name=name;
+    d.primary=kv(L,'Primary Ability');
+    const hd=(kv(L,'Hit (?:Dice|Die|Point Die)').match(/d(\d+)/)||[])[1]; if(hd) d.hd='d'+hd;
+    d.saves=kv(L,'Saving Throws'); d.skills=kv(L,'Skills').replace(/^/, (L.find(l=>/Skills\s*\(Choose (\d)\)/i.test(l))||'').match(/Choose (\d)/i)?'Choose '+(L.find(l=>/Skills\s*\(Choose/i.test(l)).match(/Choose (\d)/i)[1])+': ':'');
+    d.weapons=kv(L,'Weapons'); d.tools=kv(L,'Tools');
+    const head0=introLines(L).filter(l=>l&&!/Primary Ability\s*:/i.test(l));
+    d.desc=joinLines(head0,m);
+    secs.forEach(s=>{
+      if(!s.head) return; const h=s.head;
+      if(/^ARMOR TRAINING/.test(h)) d.armor=s.lines.filter(Boolean).join(' ');
+      else if(/^STARTING EQUIPMENT/.test(h)) d.equip=joinLines(s.lines,m);
+      else if(/^MULTICLASSING/.test(h)) d.multi=joinLines(s.lines,m);
+    });
+    d.feats=collectFeatures(secs,m);
+    return d;
+  },
+  subclass(text,m){
+    const L=prep(text), secs=sections(L), d=blank('subclass');
+    d.name=firstTitle(L);
+    const cm=text.match(new RegExp('\\b('+CLASSES.join('|')+')\\s+Subclass','i'))||text.match(new RegExp('\\b('+CLASSES.join('|')+')\\b','i'));
+    if(cm) d.cls=CLASSES.find(c=>c.toLowerCase()===cm[1].toLowerCase());
+    const pre=introLines(L).filter(Boolean).filter(l=>!new RegExp('^('+CLASSES.join('|')+')\\s+Subclass\\s*$','i').test(l));
+    const sm=pre.findIndex(l=>l.length<90&&!/[.!]$/.test(l));
+    if(sm===0){d.summary=pre[0].replace(new RegExp('^('+CLASSES.join('|')+')\\s+Subclass\\s*[:—–-]\\s*','i'),''); pre.shift();}
+    d.desc=joinLines(pre,m);
+    d.feats=collectFeatures(secs,m);
+    return d;
+  },
+  feat(text,m){
+    const L=prep(text).filter(Boolean), d=blank('feat');
+    d.name=firstTitle(L);
+    const tl=L.find(l=>/\b(Origin|General|Fighting Style|Epic Boon) Feat\b/i.test(l))||'';
+    const tm=tl.match(/\b(Origin|General|Fighting Style|Epic Boon) Feat\b/i); if(tm) d.type=TYPES.feat.fields[1].opts.find(o=>o.toLowerCase().startsWith(tm[1].toLowerCase()));
+    const pm=(tl+' '+L.join(' ')).match(/Prerequisite\s*:?\s*([^)\n]+?)(?:\)|$)/i); if(pm) d.pre=pm[1].trim();
+    d.rep=/\bRepeatable\b/i.test(text);
+    d.desc=joinLines(L.slice(1).filter(l=>l!==tl&&!/^Prerequisite\s*:/i.test(l)),m);
+    return d;
+  },
+  background(text,m){
+    const L=prep(text).filter(Boolean), d=blank('background');
+    d.name=firstTitle(L);
+    d.abil=ABILITIES.filter(a=>new RegExp('\\b'+a+'\\b','i').test(kv(L,'Ability Scores')));
+    d.feat=kv(L,'Feat').replace(/\[\[|\]\]/g,'');
+    d.skills=SKILLS.filter(s=>new RegExp('\\b'+s+'\\b','i').test(kv(L,'Skill Proficiencies')));
+    d.tool=kv(L,'Tool Proficienc(?:y|ies)'); d.equip=kv(L,'Equipment');
+    d.desc=joinLines(L.slice(1).filter(l=>!/^(?:- )?(Ability Scores|Feat|Skill Proficienc\w*|Tool Proficienc\w*|Equipment)\s*:/i.test(l)),m);
+    return d;
+  },
+  spell(text,m){
+    const L=prep(text).filter(Boolean), d=blank('spell');
+    d.name=firstTitle(L);
+    const ll=L.find(l=>/^Level\s+\d|Cantrip/i.test(l)&&l.length<120)||'';
+    const lm=ll.match(/Level\s+(\d)/i); d.lvl=lm?lm[1]:(/cantrip/i.test(ll)?'Cantrip':d.lvl);
+    const sc=SCHOOLS.find(s=>new RegExp(s,'i').test(ll)); if(sc) d.school=sc;
+    d.classes=CLASSES.filter(c=>new RegExp('\\b'+c+'\\b','i').test(ll));
+    d.cast=kv(L,'Casting Time'); d.range=m?toMeters(kv(L,'Range')):kv(L,'Range');
+    const comp=kv(L,'Components'); d.comp=['V','S','M'].filter(c=>new RegExp('(^|[ ,])'+c+'($|[ ,(])').test(comp));
+    const mm=comp.match(/\((.+)\)\s*$/); d.mat=mm?mm[1]:'';
+    d.dur=kv(L,'Duration'); d.conc=/^concentration/i.test(d.dur); d.ritual=/ritual/i.test(d.cast)||/\britual\b/i.test(ll);
+    const body=L.filter(l=>l!==L[0]&&l!==ll&&!/^(Casting Time|Range|Components|Duration)\s*:/i.test(l));
+    const hi=body.findIndex(l=>/^(Using a Higher-Level Spell Slot|Cantrip Upgrade|At Higher Levels)\b/i.test(l));
+    if(hi>=0){ d.higher=joinLines(body.slice(hi),m).replace(/^\*\*[^*]+\*\*\s*/,'').replace(/^(Using a Higher-Level Spell Slot|Cantrip Upgrade|At Higher Levels)\.?\s*/i,''); d.desc=joinLines(body.slice(0,hi),m); }
+    else d.desc=joinLines(body,m);
+    return d;
+  },
+  species(text,m){
+    const L=prep(text), secs=sections(L), d=blank('species');
+    d.name=firstTitle(L);
+    d.ctype=kv(L,'Creature Type'); d.size=kv(L,'Size'); d.speed=m?toMeters(kv(L,'Speed')):kv(L,'Speed');
+    const isKV=l=>/^(?:- )?(Creature Type|Size|Speed)\s*:/i.test(l);
+    const traits=[]; const intro=[];
+    secs.forEach((s,i)=>{
+      const ls=s.lines.filter(l=>l&&!isKV(l));
+      if(i===0){ ls.slice(1).forEach(l=>{const tm=l.match(/^([A-Z][\w'’ -]{1,40})\.\s+(.+)$/); if(tm&&traits.length+1&&/^[A-Z]/.test(tm[2])) traits.push({level:'1',name:tm[1],text:tm[2]}); else if(!traits.length) intro.push(l); else traits[traits.length-1].text+='\n\n'+l;}); return; }
+      if(/TRAITS$/.test(s.head)){ ls.forEach(l=>{const tm=l.match(/^([A-Z][\w'’ -]{1,40})\.\s+(.+)$/); if(tm) traits.push({level:'1',name:tm[1],text:tm[2]}); else if(traits.length) traits[traits.length-1].text+='\n\n'+l; else intro.push(l);}); return; }
+      traits.push({level:'1',name:titleCase(s.head),text:joinLines(ls,m)});
+    });
+    traits.forEach(t=>t.text=m?toMeters(t.text):t.text);
+    d.desc=joinLines(intro,m); d.feats=traits;
+    return d;
+  },
+};
+
+$('btnBulkZip').onclick=()=>$('btnZip').onclick();
+let resetArmed=false;
+$('btnResetAll').onclick=()=>{
+  const b=$('btnResetAll');
+  if(!resetArmed){resetArmed=true;b.textContent='Conferma: svuota tutto';b.classList.add('primary');setTimeout(()=>{resetArmed=false;b.textContent='↻ Svuota tutti i campi';b.classList.remove('primary');},3000);return;}
+  resetArmed=false;b.textContent='↻ Svuota tutti i campi';b.classList.remove('primary');
+  $('bulk').value=''; $('bulkResult').textContent=''; $('btnBulkZip').hidden=true; $('bulkType').value='auto';
+  Object.keys(TYPES).forEach(t=>S.drafts[t]=blank(t)); S.editing=null; S.isExample=false;
+  persist(); renderForm(); renderPreview(); toast('Tutti i campi sono vuoti. La lista da esportare è rimasta com’era.');
+};
+$('btnBulk').onclick=()=>{
+  const text=$('bulk').value; if(!text.trim()){ $('bulkResult').textContent='Incolla prima il testo.'; return; }
+  const m=$('bulkMeters').checked;
+  let type=$('bulkType').value; if(type==='auto') type=detect(text);
+  if(!type){ $('bulkResult').textContent='Non ho capito che tipo di pagina è: scegli il tipo dal menu e riprova.'; return; }
+  let d; try{ d=PARSERS[type](text,m); }catch(e){ $('bulkResult').textContent='Non sono riuscito a leggere il testo: '+e.message; return; }
+  const made=[];
+  const push=(t,data)=>{const b=build(t,data); const item={id:'n'+Date.now()+'_'+made.length,type:t,data:structuredClone(data),name:b.name,path:b.path};
+    const dup=S.queue.findIndex(q=>q.path===item.path); if(dup>=0) S.queue[dup]=item; else S.queue.push(item); made.push(item); learn(item); return item;};
+  const main=push(type,d);
+  if($('bulkFeatures').checked && (type==='class'||type==='subclass')){
+    d.feats.forEach(f=>{const fd=blank('feature'); fd.name=f.name; fd.cls=type==='class'?(CLASSES.find(c=>c.toLowerCase()===d.name.toLowerCase())||d.name):d.cls; fd.lvl=f.level; fd.sub=type==='subclass'?d.name:''; fd.desc=f.text; push('feature',fd);});
+  }
+  S.type=type; S.drafts[type]=structuredClone(d); S.editing=main.id; S.isExample=false; persist(); renderAll();
+  const nf=(d.feats||[]).length;
+  $('bulkResult').textContent=`Riconosciuto: ${TYPES[type].label} «${d.name}»${nf?` con ${nf} ${type==='species'?'tratti':'privilegi'}`:''}. Pronte ${made.length} note + il JSON per la scheda. Controlla l'anteprima qui sotto, poi scarica.`;
+  $('btnBulkZip').hidden=false; $('zipHint').innerHTML=zipPlan().howto;
+  $('bulk').value='';
+};
+
+renderAll();
+(async()=>{
+  try{downloads=window.claude&&window.claude.use?await window.claude.use('downloads'):null;}catch(e){downloads=null;}
+  
+})();
+</script>
+
+</body>
+</html>
