@@ -668,16 +668,21 @@ function stripWiki(text){
   if(fi>=0) L=L.slice(0,fi);
   const ci=L.findIndex(l=>/^Create a Page\s*$/i.test(l.trim()));
   if(ci>=0&&ci<80) L=L.slice(ci+1);
+  const crumb=L.find(l=>/\s»\s/.test(l));
   L=L.filter(l=>!/\s»\s/.test(l));
+  const crumbName=crumb?crumb.split('»').pop().replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').trim():'';
   const CHROME=/^(Menu|Help Docs|Click here to edit contents of this page\.?|Click here to toggle editing of individual sections of the page.*|class|subclass|Page tags:.*|community wiki|You should be logged in to clone a site\.?|Site Navigation|Create a Page|Edit|Rate|Tags|History|Files|Print|Site tools|\+ Options|page revision:.*|Last edited:.*|ADVERTISEMENT|Advertisement|Source:.*|Report a bug|Flag as objectionable|Update cookie settings|Fold|Unfold|Table of Contents)$/i;
   const onlyLinks=/^(\[[^\]]+\]\([^)]+\)\s*)+$/;
   L=L.filter(l=>{const t=l.trim(); return !(CHROME.test(t) || (onlyLinks.test(t)&&!/\t/.test(l)) || /^\[[^\]]*\]\(https?:\/\/[^)]*wikidot\.com\/?\)\s*$/.test(t));});
-  return L.join('\n').replace(/^\s+/,'');
+  let out=L.join('\n').replace(/^\s+/,'');
+  const first=(out.split('\n').find(l=>l.trim())||'').trim();
+  if(crumbName && first.toLowerCase()!==crumbName.toLowerCase()) out=crumbName+'\n'+out;
+  return out;
 }
 /* a wiki link becomes [[Name]] only when it names a rule (spell, subclass…); list pages, PDFs and external sites become plain text */
 function convLink(m,txt,url){
   const t=txt.trim();
-  if(/\.pdf($|\?|#)/i.test(url)||/spell ?lists?|spells? list/i.test(t)||!/^[A-Z0-9]/.test(t)||/media\.wizards|dndbeyond|wizards\.com/i.test(url)) return t;
+  if(/#/.test(url)||/\.pdf($|\?|#)/i.test(url)||/spell ?lists?|spells? list/i.test(t)||!/^[A-Z0-9]/.test(t)||/media\.wizards|dndbeyond|wizards\.com/i.test(url)) return t;
   return '[['+t+']]';
 }
 /* Title-case heading such as "Channel Divinity", "Level 1: Spellcasting", "Harness Divine Power (Optional)" */
@@ -728,8 +733,14 @@ function renderBody(lines,m){
   return joinLines(out,m);
 }
 /* class page in wiki form: intro, tab-separated class table, Title-case feature headings */
+function guessName(L){
+  const t=L.join('\n');
+  const m=t.match(/Core (\w+) Traits/)||t.match(/^(\w+) Class Features\s*$/m)||t.match(/^(\w+) Features \(Part/m);
+  return m?m[1]:'';
+}
 function parseClassWiki(L,m){
   const d=blank('class'); d.name=firstTitle(L);
+  if(d.name.length>40||/[.,;]$/.test(d.name)){ const g=guessName(L); if(g){ d.name=g; const i=L.findIndex(Boolean); L=[g,...L.slice(i)]; } }
   const first=L.findIndex(Boolean);
   /* every "Level<TAB>…" table before the first feature heading is part of the class table; merge them by level */
   const firstFeat=L.findIndex(l=>levelHead(l.trim()));
