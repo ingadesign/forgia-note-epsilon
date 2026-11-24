@@ -335,7 +335,7 @@ function build(type,d){
     let dur=d.dur||'';
     if(d.conc && !/^concentration/i.test(dur)) dur='Concentration, '+(/^up to/i.test(dur)?dur.charAt(0).toLowerCase()+dur.slice(1):'up to '+dur.charAt(0).toLowerCase()+dur.slice(1));
     const tags=[tag(L),tag(d.school),d.conc?'#concentration':'',d.ritual?'#ritual':'',...d.classes.map(tag)].filter(Boolean).join(' ');
-    md=`**Level:** ${L}\n**School:** ${d.school}\n**Class:** ${d.classes.join(', ')}\n\n**Casting Time:** ${d.cast}\n**Range:** ${d.range}\n**Components:** ${comp}\n**Duration:** ${dur}\n**Ritual:** ${d.ritual?'Yes':'No'}\n\n**Description:**\n${para(d.desc)}\n\n`+(d.higher?`**At Higher Levels:**\n${para(d.higher)}\n\n`:'')+`**Tags:** ${tags}`;
+    md=`**Level:** ${L}\n**School:** ${d.school}\n**Class:** ${d.classes.map(c=>'[['+c+']]').join(', ')}\n\n**Casting Time:** ${d.cast}\n**Range:** ${d.range}\n**Components:** ${comp}\n**Duration:** ${dur}\n**Ritual:** ${d.ritual?'Yes':'No'}\n\n**Description:**\n${para(d.desc)}\n\n`+(d.higher?`**At Higher Levels:**\n${para(d.higher)}\n\n`:'')+`**Tags:** ${tags}`;
     entry.subcategory=folder; entry.fields={Level:L,School:d.school,'Casting Time':d.cast,Range:d.range,Components:comp,Duration:dur};
     entry.body=para(d.desc)+(d.higher?'\n\nAt Higher Levels: '+para(d.higher):''); entry.tags=[d.school.toLowerCase(),...d.classes.map(c=>c.toLowerCase())].concat(d.conc?['concentration']:[]);
   }
@@ -382,6 +382,10 @@ function lkEntries(){
   }));
   Object.values(seen).forEach(arr=>{ const t=new Set(arr.map(a=>a.target)); if(t.size===1) list.push(arr[0]); }); // drop names used by two different notes (e.g. Slow)
   (L.learned||[]).forEach(e=>list.push(e));
+  // every class spell list: "Bard spell list" -> [[Bard Spells|Bard spell list]]
+  ['Bard','Cleric','Druid','Paladin','Ranger','Sorcerer','Warlock','Wizard'].forEach(c=>{
+    ['spell list','spell lists'].forEach(w=>{ list.push({term:`${c} ${w}`,target:`${c} Spells`,cat:'classes'}); list.push({term:`${c.toLowerCase()} ${w}`,target:`${c} Spells`,cat:'classes'}); });
+  });
   String(L.custom||'').split('\n').forEach(line=>{const m=line.match(/^\s*(.+?)\s*=\s*(.+?)\s*$/); if(m) list.push({term:m[1],target:m[2],cat:'custom'});});
   return list;
 }
