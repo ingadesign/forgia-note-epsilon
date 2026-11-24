@@ -376,6 +376,7 @@ function build(type,d){
     md=`**Class:** [[${d.cls}]]\n`+(fname?`**Feature:** [[${fname}]]\n`:'')+(list?`**Options:** [[${list}]]\n`:'')+(d.cost?`**Cost:** ${d.cost}\n`:'')+(d.pre?`**Prerequisite:** ${d.pre}\n`:'')+
        `\n**Description:**\n${para(d.desc)}\n\n**Tags:** #class-option ${fname?tag(fname)+' ':''}${tag(d.cls)}`;
     entry.subcategory=`${d.cls} — ${list||'Opzioni'}`; entry.fields={Classe:d.cls}; if(fname) entry.fields.Privilegio=fname; if(d.cost) entry.fields.Costo=d.cost; if(d.pre) entry.fields.Prerequisito=d.pre;
+    entry.body=[d.cost?'Cost: '+d.cost:'',d.pre?'Prerequisite: '+d.pre:'',para(d.desc)].filter(Boolean).join('\n');
     entry.tags=['class-option',d.cls.toLowerCase()].concat(fname?[fname.toLowerCase()]:[]);
   }
   if(type==='free'){
